@@ -7,6 +7,7 @@ const DEFAULT_HOSTNAME = '127.0.0.1'
 const DEFAULT_DATA_DIR = './data'
 const MIN_TOKEN_LENGTH = 32
 const MAX_PORT = 65535
+const MIN_ADMIN_PASSWORD_LENGTH = 16
 
 /** `teamId:token,teamId:token` 형식. teamId는 녹음 저장 경로에 쓰이므로 경로 문자를 받지 않는다 */
 const parseTeamTokens = (raw: string | undefined): ParseResult<TeamToken[]> => {
@@ -48,13 +49,21 @@ export const loadConfig = (env: NodeJS.ProcessEnv): ParseResult<CollectorConfig>
     return { ok: false, error: `COLLECTOR_PORT가 올바르지 않습니다: ${env.COLLECTOR_PORT}` }
   const teamTokens = parseTeamTokens(env.COLLECTOR_TEAM_TOKENS)
   if (!teamTokens.ok) return teamTokens
+  const adminPassword = env.COLLECTOR_ADMIN_PASSWORD?.trim() || null
+  if (adminPassword !== null && adminPassword.length < MIN_ADMIN_PASSWORD_LENGTH) {
+    return {
+      ok: false,
+      error: `COLLECTOR_ADMIN_PASSWORD는 ${MIN_ADMIN_PASSWORD_LENGTH}자 이상이어야 합니다 (비우면 관리자 페이지를 끕니다)`
+    }
+  }
   return {
     ok: true,
     value: {
       port,
       hostname: env.COLLECTOR_HOST || DEFAULT_HOSTNAME,
       dataDir: env.COLLECTOR_DATA_DIR || DEFAULT_DATA_DIR,
-      teamTokens: teamTokens.value
+      teamTokens: teamTokens.value,
+      adminPassword
     }
   }
 }

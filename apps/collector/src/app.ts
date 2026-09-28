@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
+import { HTTPException } from 'hono/http-exception'
 
+import { createAdminRoute } from './admin/adminRoute'
 import { teamAuth } from './auth'
 import * as log from './log'
 import { createEventsRoute } from './routes/events'
@@ -17,9 +19,12 @@ export const createApp = (deps: CollectorDeps) => {
   app.route('/v1/events', createEventsRoute(deps))
   app.route('/v1/meetings', createMeetingsRoute(deps))
   app.route('/v1/recordings', createRecordingsRoute(deps))
+  if (deps.admin) app.route('/admin', createAdminRoute({ ...deps, ...deps.admin }))
 
   app.notFound((c) => c.json({ error: '없는 경로입니다' }, 404))
   app.onError((caught, c) => {
+    // 미들웨어가 의도해서 던진 응답(관리자 Basic 인증의 401 등)은 그대로 돌려준다
+    if (caught instanceof HTTPException) return caught.getResponse()
     log.error(`${c.req.method} ${c.req.path} 처리 실패: ${log.messageOf(caught)}`)
     return c.json({ error: '서버 내부 오류' }, 500)
   })

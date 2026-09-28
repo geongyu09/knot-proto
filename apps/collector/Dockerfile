@@ -27,9 +27,12 @@ FROM node:22-alpine
 ENV NODE_ENV=production \
     COLLECTOR_HOST=0.0.0.0 \
     COLLECTOR_PORT=8787 \
-    COLLECTOR_DATA_DIR=/data
+    COLLECTOR_DATA_DIR=/data \
+    COLLECTOR_DESIGN_CSS=/app/base.css
 WORKDIR /app
 COPY --from=build /repo/apps/collector/dist/index.js ./index.js
+# 관리자 페이지(/admin)가 앱과 같은 디자인 토큰을 쓴다. 번들에 넣지 않고 파일로 둔다
+COPY packages/design/src/base.css ./base.css
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME /data

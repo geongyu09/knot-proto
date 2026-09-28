@@ -10,6 +10,8 @@ pnpm dev:stack          # 저장소 루트에서. 로컬 서버(127.0.0.1:8787)�
 pnpm collector:inspect  # 다른 터미널에서. 받은 이벤트·회의 스냅샷·녹음 요약
 ```
 
+- 받은 데이터는 브라우저로 **관리자 페이지** `http://127.0.0.1:8787/admin`에서 본다. 사용자 이름은 `admin`, 비밀번호는 `dev:stack`이 실행마다 만들어 `[stack]` 로그에 찍는다.
+
 - 팀 토큰은 실행마다 새로 만들어 두 프로세스에 환경 변수로 넣는다. 설정 파일이 필요 없다.
 - 서버 로그에 `[dev] 이벤트 3개 저장 (…)`처럼 받을 때마다 한 줄씩 나온다. Ctrl+C면 둘 다 꺼진다.
 - 데이터는 `apps/collector/data/dev`. 지우면 처음부터 다시 쌓인다.
@@ -31,6 +33,7 @@ COLLECTOR_SMOKE_TOKEN=<팀 토큰> pnpm collector:smoke https://<도메인>   # 
 - 로컬에서 배포 구성을 시험하려면 `COLLECTOR_DOMAIN=localhost`. Caddy가 자체 서명 인증서를 쓰므로 스모크는
   `NODE_TLS_REJECT_UNAUTHORIZED=0 COLLECTOR_SMOKE_TOKEN=… pnpm collector:smoke https://localhost`.
 - 데이터는 볼륨 `collector-data`(`/data`)에 있다. 확인: `docker compose cp collector:/data /tmp/collector-backup` 후 저장소 루트에서 `pnpm collector:inspect --data-dir /tmp/collector-backup` (상대 경로는 `apps/collector` 기준).
+- 관리자 페이지: `.env`에 `COLLECTOR_ADMIN_PASSWORD`(16자 이상, 예: `openssl rand -hex 16`)를 적으면 `https://<도메인>/admin`이 열린다 (사용자 이름 `admin`). 비우면 꺼진다.
 - 팀 토큰 폐기: `.env`에서 지우고 `docker compose up -d`.
 
 데스크탑 배포 빌드는 `apps/desktop/.env.production.local`(git 제외)에 아래를 적고 `pnpm build:mac`.
@@ -50,4 +53,18 @@ MAIN_VITE_COLLECTOR_TEAM_TOKEN=<그 팀의 토큰>
 | `DELETE /v1/meetings/{installId}/{meetingId}` | 삭제 시각만 표시                                                   |
 | `PUT /v1/recordings/{installId}/{meetingId}`  | `Content-Range` 조각 이어 올리기, 어긋나면 `409 { receivedBytes }` |
 
-조회 API는 없다 — `pnpm collector:inspect` 또는 `sqlite3 data/dev/collector.sqlite`.
+앱용 조회 API는 없다. 사람이 볼 때는 관리자 페이지(아래) 또는 `pnpm collector:inspect`, `sqlite3 data/dev/collector.sqlite`.
+
+## 관리자 페이지 (`/admin`)
+
+읽기 전용 웹 화면. `COLLECTOR_ADMIN_PASSWORD`가 있을 때만 켜지고 HTTP Basic(`admin` / 그 비밀번호)으로 막는다. 팀 토큰으로는 들어올 수 없다.
+
+| 경로                                 | 무엇                                                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `/admin`                             | 개요 — 총계, 최근 14일 일별 이벤트 수, 이벤트 이름별 개수, 최근 오류                              |
+| `/admin/events`                      | 이벤트 목록 (팀·이름·분류·설치 필터, 100개씩)                                                     |
+| `/admin/installs`                    | 설치별 첫/마지막 이벤트, 이벤트·회의 수, 마지막 환경(앱·OS·칩·모델·LLM)                           |
+| `/admin/meetings`                    | 회의 스냅샷 목록                                                                                  |
+| `/admin/meetings/{팀}/{설치}/{회의}` | 회의 상세 — 발화(화자 이름·교정 전 원문), 요약, 녹음 재생·내려받기, 스냅샷 JSON, 그 회의의 이벤트 |
+
+설계는 `.claude/skills/meeting-stt-dev/references/telemetry.md` "관리자 페이지".

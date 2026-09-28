@@ -18,6 +18,7 @@ const DEFAULT_COLLECTOR_PORT = 8787
 const DEV_TEAM_ID = 'dev'
 const DEV_DATA_DIR = './data/dev'
 const TOKEN_BYTES = 32
+const ADMIN_PASSWORD_BYTES = 12
 const HEALTH_POLL_MS = 300
 const HEALTH_TIMEOUT_MS = 30_000
 const SHUTDOWN_GRACE_MS = 5_000
@@ -36,6 +37,7 @@ const ANSI_YELLOW = '\u001b[33m'
 const collectorPort = Number(process.env.DEV_STACK_COLLECTOR_PORT) || DEFAULT_COLLECTOR_PORT
 const collectorUrl = `http://${COLLECTOR_HOST}:${collectorPort}`
 const teamToken = randomBytes(TOKEN_BYTES).toString('hex')
+const adminPassword = randomBytes(ADMIN_PASSWORD_BYTES).toString('hex')
 
 const say = (message: string) =>
   process.stdout.write(`${ANSI_YELLOW}[stack]${ANSI_RESET} ${message}\n`)
@@ -118,6 +120,7 @@ const main = async () => {
     `수집 서버 ${collectorUrl}, 팀 "${DEV_TEAM_ID}", 데이터 apps/collector/${DEV_DATA_DIR.slice(2)}`
   )
   say(`이번 실행의 개발 팀 토큰: ${teamToken}`)
+  say(`관리자 페이지: ${collectorUrl}/admin (사용자 admin, 비밀번호 ${adminPassword})`)
 
   const collector = start({
     label: 'collector',
@@ -128,7 +131,8 @@ const main = async () => {
       COLLECTOR_HOST,
       COLLECTOR_PORT: String(collectorPort),
       COLLECTOR_DATA_DIR: DEV_DATA_DIR,
-      COLLECTOR_TEAM_TOKENS: `${DEV_TEAM_ID}:${teamToken}`
+      COLLECTOR_TEAM_TOKENS: `${DEV_TEAM_ID}:${teamToken}`,
+      COLLECTOR_ADMIN_PASSWORD: adminPassword
     }
   })
   children.push(collector)
@@ -161,7 +165,9 @@ const main = async () => {
     say(`데스크탑 앱이 종료됐습니다 (코드 ${code})`)
     stopAll(code ?? 0)
   })
-  say('받은 데이터 확인: 다른 터미널에서 pnpm collector:inspect')
+  say(
+    `받은 데이터 확인: 브라우저로 ${collectorUrl}/admin 또는 다른 터미널에서 pnpm collector:inspect`
+  )
 }
 
 process.on('SIGINT', () => stopAll(0))

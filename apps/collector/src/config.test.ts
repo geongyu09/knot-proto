@@ -17,7 +17,8 @@ describe('loadConfig', () => {
         teamTokens: [
           { teamId: 'team-a', token: TOKEN_A },
           { teamId: 'team-b', token: TOKEN_B }
-        ]
+        ],
+        adminPassword: null
       }
     })
   })
@@ -35,5 +36,14 @@ describe('loadConfig', () => {
   it('포트가 숫자가 아니면 거절한다', () => {
     const config = loadConfig({ COLLECTOR_PORT: 'abc', COLLECTOR_TEAM_TOKENS: `a:${TOKEN_A}` })
     expect(config.ok).toBe(false)
+  })
+
+  it('관리자 비밀번호는 비우면 끄고, 짧으면 거절한다', () => {
+    const base = { COLLECTOR_TEAM_TOKENS: `a:${TOKEN_A}` }
+    const disabled = loadConfig({ ...base, COLLECTOR_ADMIN_PASSWORD: '' })
+    expect(disabled.ok && disabled.value.adminPassword).toBe(null)
+    expect(loadConfig({ ...base, COLLECTOR_ADMIN_PASSWORD: 'short' }).ok).toBe(false)
+    const enabled = loadConfig({ ...base, COLLECTOR_ADMIN_PASSWORD: 'p'.repeat(16) })
+    expect(enabled.ok && enabled.value.adminPassword).toBe('p'.repeat(16))
   })
 })

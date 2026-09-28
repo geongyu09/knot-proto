@@ -8,4 +8,5 @@
 !packages/*/package.json
 !packages/telemetry/src
 !apps/collector/src
+!packages/design/src/base.css
 **/*.test.ts

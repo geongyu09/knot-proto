@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.5",
+    "@meeting-stt/design": "workspace:*",
     "@meeting-stt/telemetry": "workspace:*",
     "hono": "^4.10.4"
   },

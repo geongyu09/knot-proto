@@ -11,6 +11,8 @@ services:
     restart: unless-stopped
     environment:
       COLLECTOR_TEAM_TOKENS: ${COLLECTOR_TEAM_TOKENS:?COLLECTOR_TEAM_TOKENS를 .env에 적어 주세요}
+      # 비우면 관리자 페이지(/admin)가 꺼진다
+      COLLECTOR_ADMIN_PASSWORD: ${COLLECTOR_ADMIN_PASSWORD:-}
     volumes:
       - collector-data:/data
 
