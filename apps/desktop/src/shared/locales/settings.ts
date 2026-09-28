@@ -8,11 +8,9 @@ export const settingsKo = {
   groups: {
     microphone: '마이크',
     recording: '녹음·처리',
-    widget: '녹음 위젯',
     shortcut: '단축키',
     sttModel: '음성 인식 모델',
     update: '업데이트',
-    appearance: '화면',
     language: '언어'
   },
   inputDevice: {
@@ -48,32 +46,10 @@ export const settingsKo = {
     description:
       '회의록을 만들 때 CPU를 절반만 써서 발열과 팬 소음을 줄입니다. 대신 처리 시간이 길어지고, 이미 처리 중인 회의에는 적용되지 않습니다.'
   },
-  widgetPanel: {
-    title: '녹음 위젯 패널',
-    description: ({
-      recordingShortcut,
-      widgetShortcut
-    }: {
-      recordingShortcut: string
-      widgetShortcut: string
-    }) =>
-      `화면 오른쪽에 떠 있는 작은 패널에서 회의 중에도 녹음을 시작하고 정지합니다. 꺼도 메뉴바 아이콘과 ${recordingShortcut} 단축키로 녹음할 수 있고, ${widgetShortcut}로 패널을 다시 부를 수 있습니다.`
-  },
-  widgetFade: {
-    title: '위젯 반투명',
-    description:
-      '다른 창을 쓰는 동안 위젯을 반투명하게 보여 회의 화면을 덜 가립니다. 패널을 클릭하면 다시 선명해집니다.'
-  },
-  opacity: {
-    label: '포커스가 없을 때 불투명도'
-  },
   recordingShortcut: {
     title: '녹음 시작·정지',
-    description: '다른 앱을 쓰는 중에도 이 키로 녹음을 시작하고 정지합니다.'
-  },
-  widgetShortcut: {
-    title: '위젯 표시·숨김',
-    description: '⌘·⌥·⌃ 중 하나 이상과 문자·숫자·기능키를 함께 누르세요. Esc를 누르면 취소합니다.'
+    description:
+      '다른 앱을 쓰는 중에도 이 키로 녹음을 시작하고 정지합니다. ⌘·⌥·⌃ 중 하나 이상과 문자·숫자·기능키를 함께 누르세요.'
   },
   shortcutField: {
     changeLabel: ({ title }: { title: string }) => `${title} 변경`,
@@ -81,18 +57,13 @@ export const settingsKo = {
     resetTo: ({ accelerator }: { accelerator: string }) => `기본값 ${accelerator}로`,
     suspendError: '단축키 입력 상태를 바꾸지 못했습니다'
   },
+  teamBuild: {
+    notice:
+      '팀 테스트 빌드입니다. 자동 업데이트를 쓰지 않으며 새 버전은 팀 배포 채널로 받습니다. 사용 기록·오류와 회의 내용(발화·요약·화자 이름·녹음)이 수집 서버로 전송됩니다.'
+  },
   updateCheck: {
     title: '시작할 때 업데이트 확인',
     description: '기본은 꺼짐이며, 켜도 다음 실행부터 확인합니다. 회의 내용은 보내지 않습니다.'
-  },
-  theme: {
-    title: '화면 테마',
-    description: '시스템 설정을 따르면 macOS의 라이트·다크 모드가 바뀔 때 함께 바뀝니다.',
-    options: {
-      system: '시스템 설정 따르기',
-      light: '라이트',
-      dark: '다크'
-    }
   },
   locale: {
     title: 'UI 언어',
@@ -109,11 +80,9 @@ export const settingsEn: typeof settingsKo = {
   groups: {
     microphone: 'Microphone',
     recording: 'Recording & processing',
-    widget: 'Recording widget',
     shortcut: 'Shortcuts',
     sttModel: 'Speech recognition model',
     update: 'Updates',
-    appearance: 'Appearance',
     language: 'Language'
   },
   inputDevice: {
@@ -150,33 +119,10 @@ export const settingsEn: typeof settingsKo = {
     description:
       'Uses only half the CPU while making transcripts to reduce heat and fan noise. Processing takes longer, and meetings already in progress are not affected.'
   },
-  widgetPanel: {
-    title: 'Recording widget panel',
-    description: ({
-      recordingShortcut,
-      widgetShortcut
-    }: {
-      recordingShortcut: string
-      widgetShortcut: string
-    }) =>
-      `A small panel floating on the right side of the screen lets you start and stop recording during a meeting. Even when off, you can record from the menu bar icon or with ${recordingShortcut}, and bring the panel back with ${widgetShortcut}.`
-  },
-  widgetFade: {
-    title: 'Translucent widget',
-    description:
-      'Makes the widget translucent while you use other windows so it covers less of the meeting screen. Click the panel to bring it back into focus.'
-  },
-  opacity: {
-    label: 'Opacity when unfocused'
-  },
   recordingShortcut: {
     title: 'Start/stop recording',
-    description: 'Start and stop recording with this key even while using other apps.'
-  },
-  widgetShortcut: {
-    title: 'Show/hide widget',
     description:
-      'Press at least one of ⌘, ⌥ or ⌃ together with a letter, number or function key. Press Esc to cancel.'
+      'Start and stop recording with this key even while using other apps. Press at least one of ⌘, ⌥ or ⌃ together with a letter, number or function key.'
   },
   shortcutField: {
     changeLabel: ({ title }: { title: string }) => `Change ${title}`,
@@ -184,19 +130,14 @@ export const settingsEn: typeof settingsKo = {
     resetTo: ({ accelerator }: { accelerator: string }) => `Reset to ${accelerator}`,
     suspendError: 'Could not change shortcut capture state'
   },
+  teamBuild: {
+    notice:
+      'This is a team test build. It does not auto-update; new versions come through the team distribution channel. Usage, errors, and meeting content (utterances, summaries, speaker names, recordings) are sent to the collection server.'
+  },
   updateCheck: {
     title: 'Check for updates at launch',
     description:
       'Off by default. When on, checks start from the next launch. Meeting content is never sent.'
-  },
-  theme: {
-    title: 'Theme',
-    description: 'When following the system, the app switches with macOS light and dark mode.',
-    options: {
-      system: 'Match system',
-      light: 'Light',
-      dark: 'Dark'
-    }
   },
   locale: {
     title: 'UI language',

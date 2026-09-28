@@ -13,6 +13,10 @@ export type IconName =
   | 'play'
   | 'pause'
   | 'download'
+  | 'list'
+  | 'chevronRight'
+  | 'stop'
+  | 'upload'
 
 interface IconProps {
   name: IconName
@@ -21,7 +25,7 @@ interface IconProps {
 
 const DEFAULT_SIZE = 16
 
-/** 24×24 격자의 stroke 아이콘. 색은 글자색(currentColor)을 따른다 */
+/** 24×24 격자의 stroke 1.5 아이콘(knot과 같은 굵기). 색은 글자색(currentColor)을 따른다 */
 const PATHS: Record<IconName, ReactNode> = {
   mic: (
     <>
@@ -39,7 +43,7 @@ const PATHS: Record<IconName, ReactNode> = {
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />
-      <path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </>
   ),
   copy: (
@@ -80,6 +84,23 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="m7 10 5 5 5-5" />
       <path d="M4 19h16" />
     </>
+  ),
+  list: (
+    <>
+      <path d="M9 6h11M9 12h11M9 18h11" />
+      <circle cx="4.5" cy="6" r="0.5" />
+      <circle cx="4.5" cy="12" r="0.5" />
+      <circle cx="4.5" cy="18" r="0.5" />
+    </>
+  ),
+  chevronRight: <path d="m9 6 6 6-6 6" />,
+  stop: <rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor" stroke="none" />,
+  upload: (
+    <>
+      <path d="M12 16V5" />
+      <path d="m7 10 5-5 5 5" />
+      <path d="M4 19h16" />
+    </>
   )
 }
 
@@ -92,7 +113,7 @@ export default function Icon({ name, size = DEFAULT_SIZE }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={2}
+      strokeWidth={1.5}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

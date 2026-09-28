@@ -67,7 +67,7 @@ export const stopRecordingApi = async ({ meetingId }: StopRecordingRequest) =>
 export const getRecordingStateApi = async () => window.api.recording.state()
 
 /**
- * @description 녹음 시작·정지를 요청합니다. main이 오디오 그래프를 가진 위젯 창에 명령을 넘깁니다.
+ * @description 녹음 시작·정지를 요청합니다. main이 오디오 그래프를 가진 녹음 호스트 창에 명령을 넘깁니다.
  * @param kind - 'start' | 'stop' | 'toggle'
  * @returns 없음
  * @example
@@ -88,7 +88,7 @@ export const setSpeakerCountApi = async ({ speakerCount }: SetSpeakerCountReques
   window.api.recording.setSpeakerCount({ speakerCount })
 
 /**
- * @description 위젯에서만 알 수 있는 녹음 실패(마이크 권한 등)를 main에 알립니다. 메인 창도 같은 안내를 봅니다.
+ * @description 녹음 호스트 창에서만 알 수 있는 녹음 실패(마이크 권한 등)를 main에 알립니다. 메인 창도 같은 안내를 봅니다.
  * @param message - 사용자에게 보여줄 한국어 안내
  * @returns 없음
  * @example

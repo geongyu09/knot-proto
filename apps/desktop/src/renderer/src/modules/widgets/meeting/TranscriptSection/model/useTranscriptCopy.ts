@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { formatTranscript, type TranscriptFormat } from '@meeting-stt/core/format'
 import type { Utterance } from '@shared/types'
 import { writeClipboardTextApi } from '@renderer/shared/api/clipboard'
+import { trackApi } from '@renderer/shared/api/telemetry'
 import { useLocale } from '@renderer/shared/provider/context/localeContext'
 
 /** "복사했습니다" 표시를 유지하는 시간 */
@@ -17,6 +18,7 @@ interface CopyParams {
   key: string
   targets: Utterance[]
   format: TranscriptFormat
+  scope: 'all' | 'utterance'
 }
 
 const useTranscriptCopy = ({ utterances, speakerNames }: UseTranscriptCopyParams) => {
@@ -32,13 +34,14 @@ const useTranscriptCopy = ({ utterances, speakerNames }: UseTranscriptCopyParams
     []
   )
 
-  const copy = async ({ key, targets, format }: CopyParams) => {
+  const copy = async ({ key, targets, format, scope }: CopyParams) => {
     try {
       await writeClipboardTextApi({
         text: formatTranscript({ utterances: targets, displayNames: speakerNames, format })
       })
       setCopyError(null)
       setCopiedKey(key)
+      trackApi({ name: 'transcript_copied', props: { format, scope } })
 
       if (timerRef.current) clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => setCopiedKey(null), COPIED_FEEDBACK_MS)
@@ -51,9 +54,9 @@ const useTranscriptCopy = ({ utterances, speakerNames }: UseTranscriptCopyParams
     copiedKey,
     copyError,
     copyAll: ({ format }: { format: TranscriptFormat }) =>
-      copy({ key: format, targets: utterances, format }),
+      copy({ key: format, targets: utterances, format, scope: 'all' }),
     copyUtterance: ({ utterance }: { utterance: Utterance }) =>
-      copy({ key: utterance.id, targets: [utterance], format: 'plain' })
+      copy({ key: utterance.id, targets: [utterance], format: 'plain', scope: 'utterance' })
   }
 }
 

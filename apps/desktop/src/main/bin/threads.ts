@@ -68,8 +68,12 @@ interface ThreadPlanParams {
  * 외부 바이너리에 넘길 스레드 수. 코어 구성은 바뀌지 않으므로 프로세스 수명 동안 한 번만 조회한다.
  * 동기 spawn은 UI를 멈추므로 쓰지 않는다 (references/pitfalls.md).
  */
-export const threadPlan = async ({ isQuiet = false }: ThreadPlanParams = {}) => {
+export const threadPlan = async ({ isQuiet = false }: ThreadPlanParams = {}) =>
+  planThreads({ performanceCores: await performanceCoreCount(), isQuiet })
+
+/** 성능 코어 수. 코어 구성은 바뀌지 않으므로 프로세스 수명 동안 한 번만 조회한다 */
+export const performanceCoreCount = () => {
   performanceCoresPromise ??= readPerformanceCores()
 
-  return planThreads({ performanceCores: await performanceCoresPromise, isQuiet })
+  return performanceCoresPromise
 }

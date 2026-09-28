@@ -54,7 +54,7 @@ export const modelsKo = {
     features: [
       '서버 없음, 계정 없음',
       '화자별로 나눠진 회의록과 로컬 요약',
-      '회의 중엔 작은 위젯과 단축키로 녹음'
+      '회의 중엔 메뉴바와 단축키로 녹음'
     ]
   }
 }
@@ -110,7 +110,7 @@ export const modelsEn: typeof modelsKo = {
     features: [
       'No server, no account',
       'Speaker-separated transcripts and local summaries',
-      'Record during meetings with a small widget and shortcuts'
+      'Record during meetings from the menu bar or with shortcuts'
     ]
   }
 }

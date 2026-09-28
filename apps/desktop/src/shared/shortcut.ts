@@ -1,7 +1,6 @@
 /** 설정 화면의 키 입력 변환과 main의 저장 검증이 같은 규칙을 쓰도록 이 파일 하나에 둔다 (references/architecture.md) */
 
 export const DEFAULT_RECORDING_SHORTCUT = 'Alt+Command+R'
-export const DEFAULT_WIDGET_SHORTCUT = 'Alt+Command+W'
 
 /** accelerator에 적는 순서이자 macOS 메뉴가 기호를 늘어놓는 순서 */
 const MODIFIERS = ['Control', 'Alt', 'Shift', 'Command'] as const

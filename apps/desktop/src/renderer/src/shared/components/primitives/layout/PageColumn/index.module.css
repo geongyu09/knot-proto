@@ -1,0 +1,25 @@
+.scroller {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+}
+
+.narrow {
+  max-width: calc(720px + var(--space-6) * 2);
+}
+
+.medium {
+  max-width: calc(880px + var(--space-6) * 2);
+}
+
+.wide {
+  max-width: calc(1080px + var(--space-6) * 2);
+}

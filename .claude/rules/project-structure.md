@@ -27,9 +27,11 @@ pnpm 워크스페이스 모노레포다. **먼저 워크스페이스를 정하�
 ```
 apps/desktop/      제품 Electron 앱 (패키지 meeting-stt)
 apps/web/          브라우저 추론 프로토타입 (@meeting-stt/web)
+apps/collector/    사용 정보 수집 서버 (@meeting-stt/collector, test/usage-analytics 전용, Node + Hono)
 packages/core/     순수 공용 로직 (@meeting-stt/core)
 packages/models/   모델 카탈로그 (@meeting-stt/models)
 packages/design/   디자인 토큰·동봉 글꼴 (@meeting-stt/design, CSS·글꼴만)
+packages/telemetry/ 사용 정보 계약 — 이벤트·envelope·스냅샷·수집 HTTP 규약 (@meeting-stt/telemetry, test/usage-analytics 전용)
 ```
 
 | 새 코드가 이런 것이면 | 여기 |
@@ -39,6 +41,7 @@ packages/design/   디자인 토큰·동봉 글꼴 (@meeting-stt/design, CSS·�
 | 두 앱이 같이 쓰는 디자인 토큰(색·간격·반경·글자 크기)·글꼴 | `packages/design/src/{base,fonts}.css`, `packages/design/src/fonts/` |
 | Electron·Node·SQLite·동봉 바이너리를 만지거나 앱 화면·IPC인 것 | `apps/desktop/src/…` |
 | 브라우저 워커·transformers.js·WebGPU를 만지는 것 | `apps/web/src/…` |
+| 수집 서버의 HTTP 라우트·저장 (이 브랜치 전용) | `apps/collector/src/…` (역할별 플랫 파일, React 레이어 규칙 없음) |
 
 - 의존 방향은 `apps/* → packages/*` 한 방향. 패키지는 앱을, 패키지는 서로를 import하지 않음. 앱끼리도 import 금지.
 - `packages/*`는 `electron`·`fs`·`child_process`·DOM·`react`를 import하지 않음 (Node·브라우저·vitest에서 같은 파일이 돈다).
@@ -169,10 +172,10 @@ src/
 | `setting` | 앱 설정 조회·변경 (원본 WAV 보관, 업데이트 확인 등) |
 | `update` | 새 버전 알림·다운로드·설치 (Phase 4, 기본 꺼짐) |
 | `clipboard` | 시스템 클립보드 쓰기 (api 래퍼 전용 도메인, 컴포넌트 폴더는 만들지 않음) |
-| `widget` | 녹음 위젯 패널 표시·숨김 (api 래퍼 전용 도메인. 패널 UI는 `recording/WidgetPanelSection`) |
 | `glossary` | 전역 용어 사전 조회·저장·초안 생성 (api 래퍼 전용 도메인. 화면은 `setting/GlossarySection`) |
 | `llm` | LLM 공급자 상태 조회·공급자 저장·API 키 저장·연결 확인 (api 래퍼·`useLlmStatus` 훅. 화면은 `setting/LlmSection`) |
 | `refine` | 회의록 자동 교정 — 진행률 구독·수동 재실행·고친 쌍 목록 (api 래퍼·`useRefine` 훅·`features/refine/RefinePanel`·외부 공급자 자동 교정 스위치 `features/refine/AutoRefineToggle`. 결과 자체는 회의 상세의 일부라 `useMeeting`이 든다) |
+| `navigation` | 앱 셸 탐색 — 상단 GNB(알약 탭·목록 패널 토글·설정 버튼). 라우트 정의는 `shared/routes` (2026-09-28 knot 리디자인) |
 
 ## 레이어별 역할 (renderer)
 

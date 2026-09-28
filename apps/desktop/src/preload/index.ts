@@ -49,7 +49,6 @@ import {
   type SetSystemAudioRequest,
   type SetSpeakerCountRequest,
   type SetShortcutsSuspendedRequest,
-  type SetWidgetVisibleRequest,
   type StartRecordingRequest,
   type StartRecordingResponse,
   type StopRecordingRequest,
@@ -63,6 +62,7 @@ import {
   type UpdateSettingsRequest,
   type UpdateSettingsResponse,
   type UpdateUtteranceTextRequest,
+  type TrackTelemetryRequest,
   type WriteClipboardTextRequest
 } from '@shared/ipc'
 
@@ -91,10 +91,6 @@ const api = {
       ipcRenderer.invoke(IPC.recording.setSystemAudio, payload),
     setPaused: (payload: SetRecordingPausedRequest): Promise<GetRecordingStateResponse> =>
       ipcRenderer.invoke(IPC.recording.setPaused, payload)
-  },
-  widget: {
-    setVisible: (payload: SetWidgetVisibleRequest): Promise<void> =>
-      ipcRenderer.invoke(IPC.widget.setVisible, payload)
   },
   shortcuts: {
     setSuspended: (payload: SetShortcutsSuspendedRequest): Promise<void> =>
@@ -134,6 +130,10 @@ const api = {
     get: (): Promise<GetSettingsResponse> => ipcRenderer.invoke(IPC.settings.get),
     update: (payload: UpdateSettingsRequest): Promise<UpdateSettingsResponse> =>
       ipcRenderer.invoke(IPC.settings.update, payload)
+  },
+  telemetry: {
+    track: (payload: TrackTelemetryRequest): Promise<void> =>
+      ipcRenderer.invoke(IPC.telemetry.track, payload)
   },
   clipboard: {
     writeText: (payload: WriteClipboardTextRequest): Promise<void> =>

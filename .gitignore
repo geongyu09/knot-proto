@@ -16,3 +16,8 @@ apps/desktop/resources/bin/
 docs/external/
 docs/browser-worker-service-design.md
 .vercel
+
+# 사용 정보 수집 설정(팀 토큰·키). 예시 파일만 커밋한다 (references/telemetry.md "빌드 주입 값")
+apps/desktop/.env
+apps/desktop/.env.*
+!apps/desktop/.env.example

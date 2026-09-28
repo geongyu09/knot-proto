@@ -2,25 +2,23 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 10px var(--space-3);
-  border: 1px solid transparent;
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   text-decoration: none;
 }
 
 .item:hover {
-  background: var(--color-surface);
+  background: var(--color-surface-hover);
 }
 
-.active {
-  background: var(--color-surface);
-  border-color: var(--color-border);
+.active,
+.active:hover {
+  background: var(--color-border);
 }
 
 .title {
   overflow: hidden;
-  font-size: var(--font-base);
-  font-weight: 500;
+  font-size: var(--font-sm);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -36,7 +34,7 @@
 }
 
 .recording {
-  color: var(--color-accent);
+  color: var(--color-recording);
   font-weight: 500;
 }
 

@@ -3,27 +3,33 @@
  * 값의 근거는 .claude/skills/meeting-stt-dev/references/architecture.md "화면 디자인" 절
  */
 :root {
-  color-scheme: light dark;
+  /* 다크 모드는 없다 (knot 리디자인, 2026-09-28). main이 nativeTheme을 light로 고정한다 */
+  color-scheme: light;
 
-  --color-bg: #ffffff;
-  --color-sidebar: #f7f7f8;
+  --color-bg: #faf9f7;
+  --color-sidebar: #f4f2ee;
   --color-surface: #ffffff;
-  --color-surface-hover: #f7f7f8;
-  --color-border: #e7e7ea;
-  --color-border-strong: #dcdce0;
-  --color-divider: #ededf0;
-  --color-disabled: #d4d4d9;
-  --color-text: #111113;
-  --color-text-muted: #6b6b73;
+  --color-surface-hover: #f4f2ee;
+  --color-border: #e9e6e1;
+  --color-border-strong: #d8d4cd;
+  --color-divider: #e9e6e1;
+  --color-disabled: #d8d4cd;
+  --color-text: #1f1e1c;
+  --color-text-secondary: #55524d;
+  --color-text-muted: #6b6862;
+  /* 대비 3.5:1이라 개수·캡션처럼 없어도 되는 글자에만 쓴다 */
+  --color-text-subtle: #8c8880;
   --color-text-inverse: #ffffff;
-  --color-accent: #4338ca;
+  --color-primary: #3c3b39;
+  /* 버튼 바탕에는 쓰지 않는다. 포커스·완료 피드백 전용 */
+  --color-accent: #2e85a3;
   --color-accent-text: #ffffff;
-  --color-accent-soft: #e0e7ff;
-  /* 빨강은 오류 전용이고 녹음 상태에 쓰지 않는다 */
-  --color-danger: #b4232a;
-  --color-danger-soft: #fdecec;
-  --color-success: #15803d;
-  --color-success-soft: #e7f4ec;
+  --color-accent-soft: #e3f0f4;
+  --color-recording: #bf3b2c;
+  --color-danger: #bf3b2c;
+  --color-danger-soft: #fbece9;
+  --color-success: #2e85a3;
+  --color-success-soft: #e3f0f4;
   --color-thumb: #ffffff;
   --color-disabled-text: #ffffff;
 
@@ -36,67 +42,38 @@
   --color-speaker-7: #4d7c0f;
   --color-speaker-8: #475569;
 
+  --shadow-1: 0 1px 1px rgb(31 30 28 / 4%), 0 2px 6px -1px rgb(31 30 28 / 8%);
+  --shadow-2: 0 1px 2px rgb(31 30 28 / 4%), 0 6px 16px -4px rgb(31 30 28 / 8%);
+  --shadow-3: 0 2px 4px rgb(31 30 28 / 4%), 0 8px 24px rgb(31 30 28 / 7%);
+
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
+  --space-7: 28px;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
   --radius-full: 999px;
 
-  /* Google Sans에는 한글 글리프가 없어 한글은 Pretendard로 떨어진다 */
-  --font-sans: 'Google Sans', 'Pretendard', -apple-system, sans-serif;
-  --font-mono: 'Google Sans Code', 'Google Sans', monospace;
+  --font-sans: 'Pretendard', -apple-system, sans-serif;
+  --font-mono: 'Google Sans Code', 'Pretendard', monospace;
 
   --font-xs: 12px;
-  --font-sm: 13px;
-  --font-base: 14px;
-  --font-md: 15px;
+  --font-sm: 14px;
+  --font-base: 15px;
+  --font-md: 16px;
   --font-lg: 18px;
   --font-xl: 22px;
-  --font-title: 30px;
+  --font-title: 28px;
   --font-display: 40px;
   --font-hero: 44px;
-  --font-timer: 88px;
-}
-
-/* 변수 이름은 그대로 두고 값만 바꾼다. 강조·주요 버튼 글자는 어두운 잉크로 뒤집힌다 */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #121214;
-    --color-sidebar: #18181b;
-    --color-surface: #1c1c20;
-    --color-surface-hover: #232328;
-    --color-border: #2a2a30;
-    --color-border-strong: #3a3a41;
-    --color-divider: #222226;
-    --color-disabled: #45454c;
-    --color-text: #ececef;
-    --color-text-muted: #9b9ba5;
-    --color-text-inverse: #111113;
-    --color-accent: #8b8ff7;
-    --color-accent-text: #111113;
-    --color-accent-soft: #26264a;
-    --color-danger: #f47a74;
-    --color-danger-soft: #3a1c1d;
-    --color-success: #4cc97a;
-    --color-success-soft: #173323;
-    --color-thumb: #ececef;
-    --color-disabled-text: #8a8a93;
-
-    --color-speaker-1: #2dc4b0;
-    --color-speaker-2: #f08a4b;
-    --color-speaker-3: #f06aa8;
-    --color-speaker-4: #d2a23a;
-    --color-speaker-5: #6aa3f8;
-    --color-speaker-6: #b98af5;
-    --color-speaker-7: #8cc43a;
-    --color-speaker-8: #98a3b3;
-  }
+  --font-timer: 72px;
 }
 
 *,
@@ -111,7 +88,7 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: var(--font-md);
-  line-height: 1.55;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 

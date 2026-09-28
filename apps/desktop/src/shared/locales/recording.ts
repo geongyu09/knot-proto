@@ -1,8 +1,5 @@
-/** 녹음 화면·위젯 패널·녹음 훅 문구. ko가 타입을 정하고 en은 같은 키를 가져야 한다 (references/architecture.md "UI 언어") */
+/** 녹음 화면·녹음 훅 문구. ko가 타입을 정하고 en은 같은 키를 가져야 한다 (references/architecture.md "UI 언어") */
 export const recordingKo = {
-  page: {
-    title: '새 회의 녹음'
-  },
   status: {
     recording: '녹음 중',
     paused: '일시정지됨',
@@ -31,9 +28,9 @@ export const recordingKo = {
     stopAndTranscribe: '녹음 정지하고 회의록 만들기',
     controlError: '녹음 요청을 보내지 못했습니다. 잠시 후 다시 시도해 주세요',
     keepsRunning: '창을 닫거나 다른 화면으로 옮겨도 녹음은 계속됩니다.',
-    widgetHintPrefix: '위젯 패널이나 ',
-    widgetHintSuffix: '로도 시작·정지할 수 있습니다.',
-    widgetHintPlain: '위젯 패널에서도 시작·정지할 수 있습니다.'
+    shortcutHintPrefix: '메뉴바 아이콘이나 ',
+    shortcutHintSuffix: '로도 시작·정지할 수 있습니다.',
+    shortcutHintPlain: '메뉴바 아이콘과 전역 단축키로도 시작·정지할 수 있습니다.'
   },
   live: {
     viewLabel: '녹음 화면 보기',
@@ -60,16 +57,6 @@ export const recordingKo = {
     hint: '음성 메모·회의 녹화 파일도 됩니다. 참석자 수를 함께 씁니다',
     failed: '녹음 파일을 가져오지 못했습니다'
   },
-  widget: {
-    sectionLabel: '녹음 위젯',
-    hide: '위젯 숨기기',
-    start: '녹음 시작',
-    stop: '녹음 정지',
-    modelNotReady: '음성 인식 모델을 받으면 녹음할 수 있습니다',
-    stopHint: '정지하면 메인 창에서 회의록을 만듭니다',
-    pausedHint: '일시정지 동안의 소리는 회의록에 남지 않습니다',
-    startHint: '회의가 시작되면 녹음을 누르세요'
-  },
   errors: {
     permissionDenied: '마이크 사용 권한이 없습니다. 시스템 설정에서 마이크 접근을 허용해 주세요',
     modelNotReady:
@@ -87,9 +74,6 @@ export const recordingKo = {
 }
 
 export const recordingEn: typeof recordingKo = {
-  page: {
-    title: 'New recording'
-  },
   status: {
     recording: 'Recording',
     paused: 'Paused',
@@ -117,9 +101,10 @@ export const recordingEn: typeof recordingKo = {
     stopAndTranscribe: 'Stop and create transcript',
     controlError: 'Could not send the recording command. Please try again shortly',
     keepsRunning: 'Recording continues even if you close this window or switch screens.',
-    widgetHintPrefix: 'You can also start and stop from the widget panel or with ',
-    widgetHintSuffix: '.',
-    widgetHintPlain: 'You can also start and stop from the widget panel.'
+    shortcutHintPrefix: 'You can also start and stop from the menu bar icon or with ',
+    shortcutHintSuffix: '.',
+    shortcutHintPlain:
+      'You can also start and stop from the menu bar icon or with the global shortcut.'
   },
   live: {
     viewLabel: 'Recording view',
@@ -145,16 +130,6 @@ export const recordingEn: typeof recordingKo = {
     importing: 'Importing…',
     hint: 'Voice memos and recordings work too. Uses the participant count',
     failed: 'Could not import the recording'
-  },
-  widget: {
-    sectionLabel: 'Recording widget',
-    hide: 'Hide widget',
-    start: 'Start recording',
-    stop: 'Stop recording',
-    modelNotReady: 'Download the speech model to start recording',
-    stopHint: 'Stopping creates the transcript in the main window',
-    pausedHint: 'Audio while paused is not included in the transcript',
-    startHint: 'Press record when the meeting starts'
   },
   errors: {
     permissionDenied: 'Microphone access is not allowed. Allow it in System Settings',

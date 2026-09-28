@@ -14,14 +14,9 @@ export const getSettingsApi = async () => window.api.settings.get()
  * @param isAudioKept - 회의록을 만든 뒤 원본 녹음을 보관할지 여부
  * @param isUpdateCheckEnabled - 앱 시작 시 새 버전을 확인할지 여부 (기본 꺼짐)
  * @param isQuietProcessing - 회의록을 만들 때 속도보다 발열·팬 소음을 줄일지 여부 (기본 꺼짐)
- * @param isWidgetEnabled - 녹음 위젯 패널을 띄울지 여부 (기본 켜짐)
- * @param isWidgetFadeEnabled - 위젯이 포커스를 잃으면 반투명하게 할지 여부 (기본 켜짐)
- * @param widgetFadeOpacity - 포커스가 없을 때의 위젯 불투명도 (0.2~0.95)
  * @param recordingShortcut - 녹음 토글 전역 단축키 (Electron accelerator)
- * @param widgetShortcut - 위젯 표시/숨김 전역 단축키 (Electron accelerator)
  * @param inputDevice - 녹음에 쓸 마이크 (`{ deviceId, label }`). null이면 시스템 기본 마이크
  * @param locale - UI 언어 (`'ko'` | `'en'`). 인식·요약 언어는 바뀌지 않습니다
- * @param theme - 화면 테마 (`'system'` | `'light'` | `'dark'`). main이 모든 창에 바로 적용합니다
  * @param isAutoRefineExternal - 외부 LLM 공급자일 때 회의록이 만들어지면 자동으로 교정할지 여부 (기본 꺼짐)
  * @returns 저장된 설정
  * @example
@@ -29,14 +24,9 @@ export const getSettingsApi = async () => window.api.settings.get()
  *   isAudioKept: true,
  *   isUpdateCheckEnabled: false,
  *   isQuietProcessing: false,
- *   isWidgetEnabled: true,
- *   isWidgetFadeEnabled: true,
- *   widgetFadeOpacity: 0.55,
  *   recordingShortcut: 'Alt+Command+R',
- *   widgetShortcut: 'Alt+Command+W',
  *   inputDevice: null,
  *   locale: 'ko',
- *   theme: 'system',
  *   isAutoRefineExternal: false
  * })
  */
@@ -44,28 +34,18 @@ export const updateSettingsApi = async ({
   isAudioKept,
   isUpdateCheckEnabled,
   isQuietProcessing,
-  isWidgetEnabled,
-  isWidgetFadeEnabled,
-  widgetFadeOpacity,
   recordingShortcut,
-  widgetShortcut,
   inputDevice,
   locale,
-  theme,
   isAutoRefineExternal
 }: UpdateSettingsRequest) =>
   window.api.settings.update({
     isAudioKept,
     isUpdateCheckEnabled,
     isQuietProcessing,
-    isWidgetEnabled,
-    isWidgetFadeEnabled,
-    widgetFadeOpacity,
     recordingShortcut,
-    widgetShortcut,
     inputDevice,
     locale,
-    theme,
     isAutoRefineExternal
   })
 

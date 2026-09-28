@@ -1,0 +1,84 @@
+.gnb {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  height: calc(var(--gnb-top) + var(--gnb-height));
+  padding: var(--gnb-top) var(--space-5) 0 var(--gnb-inset-left);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.side {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.right {
+  justify-content: flex-end;
+}
+
+.roundButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-1);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.roundButton:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.pressed,
+.pressed:hover {
+  color: var(--color-text-inverse);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.pill {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  height: var(--gnb-height);
+  padding: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-1);
+  -webkit-app-region: no-drag;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 18px;
+  color: var(--color-text-muted);
+  font-size: var(--font-sm);
+  text-decoration: none;
+  border-radius: var(--radius-full);
+}
+
+.tab:hover {
+  color: var(--color-text);
+}
+
+.activeTab,
+.activeTab:hover {
+  color: var(--color-text-inverse);
+  background: var(--color-text-secondary);
+}

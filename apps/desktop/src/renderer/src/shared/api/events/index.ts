@@ -60,7 +60,7 @@ export const onUpdateAvailable = (listener: (event: UpdateAvailableEvent) => voi
   window.api.events.onUpdateAvailable(listener)
 
 /**
- * @description 녹음 상태(진행 중 회의·시작 시각·레벨·참석자 수) 변화를 구독합니다. 위젯과 메인 창이 같은 값을 봅니다.
+ * @description 녹음 상태(진행 중 회의·시작 시각·레벨·참석자 수) 변화를 구독합니다. 녹음 호스트 창과 메인 창이 같은 값을 봅니다.
  * @param listener - 녹음 상태 이벤트 콜백
  * @returns 구독 해제 함수
  * @example
@@ -70,7 +70,7 @@ export const onRecordingState = (listener: (event: RecordingStateEvent) => void)
   window.api.events.onRecordingState(listener)
 
 /**
- * @description main이 보내는 녹음 시작/정지 지시를 구독합니다. 오디오 그래프를 가진 위젯 창에서만 씁니다.
+ * @description main이 보내는 녹음 시작/정지 지시를 구독합니다. 오디오 그래프를 가진 녹음 호스트 창에서만 씁니다.
  * @param listener - 녹음 명령 콜백
  * @returns 구독 해제 함수
  * @example
@@ -99,7 +99,7 @@ export const onMeetingsChanged = (listener: () => void) =>
   window.api.events.onMeetingsChanged(listener)
 
 /**
- * @description 설정 저장 이벤트를 구독합니다. 다른 창(설정 화면)이 저장한 값을 위젯 창도 받습니다. UI 언어 전환에 씁니다.
+ * @description 설정 저장 이벤트를 구독합니다. 다른 창(설정 화면)이 저장한 값을 녹음 호스트 창도 받습니다. UI 언어 전환에 씁니다.
  * @param listener - 저장된 설정 전체를 받는 콜백
  * @returns 구독 해제 함수
  * @example

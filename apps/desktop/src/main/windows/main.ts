@@ -13,7 +13,7 @@ const TRAFFIC_LIGHT_POSITION = { x: 18, y: 18 }
 
 /**
  * 창이 둘이 되면서 `BrowserWindow.getAllWindows()[0]`을 메인 창으로 가정할 수 없게 됐다.
- * 위젯이 먼저 잡히면 재생성·포커스가 엉뚱한 창을 집는다 (references/pitfalls.md).
+ * 녹음 호스트 창이 먼저 잡히면 재생성·포커스가 엉뚱한 창을 집는다 (references/pitfalls.md).
  */
 let mainWindow: BrowserWindow | null = null
 
@@ -61,7 +61,7 @@ export const createMainWindow = () => {
   return window
 }
 
-/** 위젯·트레이·단축키에서 메인 창을 앞으로 가져올 때 쓴다. 닫혀 있으면 다시 만든다 */
+/** 트레이·단축키에서 메인 창을 앞으로 가져올 때 쓴다. 닫혀 있으면 다시 만든다 */
 export const showMainWindow = () => {
   const window = getMainWindow() ?? createMainWindow()
 

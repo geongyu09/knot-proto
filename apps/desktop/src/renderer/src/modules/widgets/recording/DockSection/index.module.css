@@ -1,0 +1,81 @@
+.dock {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 60px;
+  padding: 0 var(--space-3);
+  color: var(--color-text-inverse);
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-3);
+}
+
+.iconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: inherit;
+  border-radius: 20px;
+}
+
+.iconButton:hover {
+  background: var(--color-text-secondary);
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) 14px;
+  background: var(--color-text-secondary);
+  border-radius: 20px;
+}
+
+.time {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: inherit;
+  text-decoration: none;
+}
+
+.dot,
+.pausedDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+}
+
+.dot {
+  background: var(--color-recording);
+}
+
+.pausedDot {
+  background: var(--color-border-strong);
+}
+
+.clock {
+  font-size: var(--font-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--color-primary);
+  background: var(--color-surface);
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+
+.stop:hover {
+  opacity: 0.88;
+}

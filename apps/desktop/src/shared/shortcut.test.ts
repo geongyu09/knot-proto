@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   DEFAULT_RECORDING_SHORTCUT,
-  DEFAULT_WIDGET_SHORTCUT,
   acceleratorFromKeyInput,
   formatAccelerator,
   isValidAccelerator
@@ -13,7 +12,6 @@ const NO_MODIFIERS = { ctrlKey: false, altKey: false, shiftKey: false, metaKey: 
 describe('isValidAccelerator', () => {
   it('기본 단축키는 유효하다', () => {
     expect(isValidAccelerator(DEFAULT_RECORDING_SHORTCUT)).toBe(true)
-    expect(isValidAccelerator(DEFAULT_WIDGET_SHORTCUT)).toBe(true)
   })
 
   it('Control·Alt·Command 중 하나가 없으면 거절한다', () => {

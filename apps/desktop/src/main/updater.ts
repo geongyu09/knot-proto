@@ -7,6 +7,12 @@ import { info, messageOf, warn } from './log'
 import { pickAvailableVersion } from './updateResult'
 import { t } from './locale'
 
+/**
+ * 팀 테스트 빌드(test/usage-analytics)는 공개 릴리스 채널을 보지 않는다 — 공개 업데이트가 수집 빌드를 덮거나
+ * 그 반대가 되지 않게 한다 (references/telemetry.md "빌드 분리"). 설정 화면에서도 업데이트 항목을 숨긴다.
+ */
+const IS_TEAM_BUILD = true
+
 /** 새 버전을 찾아도 내려받지 않는다. 받기·설치는 사용자가 누를 때만 한다 */
 const findAvailableVersion = async () => {
   autoUpdater.autoDownload = false
@@ -23,7 +29,7 @@ const findAvailableVersion = async () => {
  * 새 버전을 발견해도 내려받지 않고 알리기만 한다.
  */
 export const checkForUpdates = async ({ isEnabled }: { isEnabled: boolean }) => {
-  if (!isEnabled || is.dev) return null
+  if (!isEnabled || is.dev || IS_TEAM_BUILD) return null
 
   try {
     const version = await findAvailableVersion()
@@ -43,6 +49,7 @@ export const checkForUpdates = async ({ isEnabled }: { isEnabled: boolean }) => 
  * 실패는 삼키지 않고 안내 문구로 던진다 (`references/distribution.md` 7절).
  */
 export const checkForUpdatesNow = async () => {
+  if (IS_TEAM_BUILD) throw new Error(t().main.update.teamBuild)
   if (is.dev) throw new Error(t().main.update.devMode)
 
   const currentVersion = app.getVersion()

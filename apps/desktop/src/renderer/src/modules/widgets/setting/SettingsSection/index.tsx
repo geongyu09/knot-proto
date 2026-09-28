@@ -1,15 +1,5 @@
 import type { ReactNode } from 'react'
-import UpdateCheck from '@renderer/modules/features/update/UpdateCheck'
-import {
-  DEFAULT_RECORDING_SHORTCUT,
-  DEFAULT_WIDGET_SHORTCUT,
-  formatAccelerator
-} from '@shared/shortcut'
-import {
-  MAX_WIDGET_FADE_OPACITY,
-  MIN_WIDGET_FADE_OPACITY,
-  WIDGET_FADE_OPACITY_STEP
-} from '@shared/widget'
+import { DEFAULT_RECORDING_SHORTCUT } from '@shared/shortcut'
 import SettingGroup from '@renderer/shared/components/primitives/layout/SettingGroup'
 import useInputDevices from '@renderer/shared/hooks/domain/recording/useInputDevices'
 import useRecordingState from '@renderer/shared/hooks/domain/recording/useRecordingState'
@@ -19,10 +9,8 @@ import { useLocale } from '@renderer/shared/provider/context/localeContext'
 import InputDeviceSelect from './ui/InputDeviceSelect'
 import LocaleSelect from './ui/LocaleSelect'
 import MicrophoneTest from './ui/MicrophoneTest'
-import OpacitySlider from './ui/OpacitySlider'
 import SettingToggle from './ui/SettingToggle'
 import ShortcutField from './ui/ShortcutField'
-import ThemeSelect from './ui/ThemeSelect'
 import styles from './index.module.css'
 
 interface SettingsSectionProps {
@@ -89,33 +77,6 @@ export default function SettingsSection({ children }: SettingsSectionProps) {
           {t.settings.quietProcessing.description}
         </SettingToggle>
       </SettingGroup>
-      <SettingGroup title={t.settings.groups.widget}>
-        <SettingToggle
-          title={t.settings.widgetPanel.title}
-          isChecked={settings.isWidgetEnabled}
-          onChange={(isWidgetEnabled) => updateSettings({ isWidgetEnabled })}
-        >
-          {t.settings.widgetPanel.description({
-            recordingShortcut: formatAccelerator(settings.recordingShortcut),
-            widgetShortcut: formatAccelerator(settings.widgetShortcut)
-          })}
-        </SettingToggle>
-        <SettingToggle
-          title={t.settings.widgetFade.title}
-          isChecked={settings.isWidgetFadeEnabled}
-          onChange={(isWidgetFadeEnabled) => updateSettings({ isWidgetFadeEnabled })}
-        >
-          {t.settings.widgetFade.description}
-        </SettingToggle>
-        <OpacitySlider
-          value={settings.widgetFadeOpacity}
-          min={MIN_WIDGET_FADE_OPACITY}
-          max={MAX_WIDGET_FADE_OPACITY}
-          step={WIDGET_FADE_OPACITY_STEP}
-          isDisabled={!settings.isWidgetFadeEnabled}
-          onChange={(widgetFadeOpacity) => updateSettings({ widgetFadeOpacity })}
-        />
-      </SettingGroup>
       <SettingGroup title={t.settings.groups.shortcut}>
         <ShortcutField
           title={t.settings.recordingShortcut.title}
@@ -125,28 +86,11 @@ export default function SettingsSection({ children }: SettingsSectionProps) {
         >
           {t.settings.recordingShortcut.description}
         </ShortcutField>
-        <ShortcutField
-          title={t.settings.widgetShortcut.title}
-          accelerator={settings.widgetShortcut}
-          defaultAccelerator={DEFAULT_WIDGET_SHORTCUT}
-          onChange={(widgetShortcut) => updateSettings({ widgetShortcut })}
-        >
-          {t.settings.widgetShortcut.description}
-        </ShortcutField>
       </SettingGroup>
       {children}
+      {/* 팀 테스트 빌드는 자동 업데이트를 쓰지 않고, 수집 빌드임을 여기 적는다 (references/telemetry.md "빌드 분리") */}
       <SettingGroup title={t.settings.groups.update}>
-        <SettingToggle
-          title={t.settings.updateCheck.title}
-          isChecked={settings.isUpdateCheckEnabled}
-          onChange={(isUpdateCheckEnabled) => updateSettings({ isUpdateCheckEnabled })}
-        >
-          {t.settings.updateCheck.description}
-        </SettingToggle>
-        <UpdateCheck />
-      </SettingGroup>
-      <SettingGroup title={t.settings.groups.appearance}>
-        <ThemeSelect value={settings.theme} onChange={(theme) => updateSettings({ theme })} />
+        <p className={styles.message}>{t.settings.teamBuild.notice}</p>
       </SettingGroup>
       <SettingGroup title={t.settings.groups.language}>
         <LocaleSelect value={settings.locale} onChange={(locale) => updateSettings({ locale })} />

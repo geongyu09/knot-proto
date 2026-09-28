@@ -5,7 +5,7 @@ import { getRecordingState } from '../audio/session'
 import { getLocale, t } from '../locale'
 import { messageOf, warn } from '../log'
 import { showMainWindow } from './main'
-import { requestRecordingCommand, toggleWidgetVisible } from './widget'
+import { requestRecordingCommand } from './recorder'
 
 /** 파일명이 Template으로 끝나야 macOS가 다크/라이트에 맞춰 반전한다 (references/pitfalls.md) */
 const TRAY_ICON_FILE = 'trayTemplate.png'
@@ -49,7 +49,6 @@ const buildMenu = ({ isRecording }: { isRecording: boolean }) => {
       label: isRecording ? labels.stopRecording : labels.startRecording,
       click: () => requestRecordingCommand({ kind: isRecording ? 'stop' : 'start' })
     },
-    { label: labels.toggleWidget, click: toggleWidgetVisible },
     { type: 'separator' },
     { label: labels.openMainWindow, click: () => showMainWindow() },
     { type: 'separator' },
@@ -110,7 +109,7 @@ export const refreshTray = () => {
   )
 }
 
-/** 아이콘을 읽지 못해도 앱은 뜬다 — 트레이가 없으면 패널과 단축키로 모든 동작을 할 수 있다 */
+/** 아이콘을 읽지 못해도 앱은 뜬다 — 트레이가 없으면 메인 창과 단축키로 모든 동작을 할 수 있다 */
 export const createTray = () => {
   try {
     const icon = nativeImage.createFromPath(trayIconPath())

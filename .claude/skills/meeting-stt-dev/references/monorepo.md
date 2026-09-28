@@ -15,6 +15,8 @@ pnpm 워크스페이스 하나에 데스크탑 앱·브라우저 프로토타입
 | `apps/web` | `@meeting-stt/web` | 브라우저 (WebGPU/WASM) | 브라우저 추론 프로토타입 (`docs/browser-prototype-plan.md`) |
 | `packages/core` | `@meeting-stt/core` | 순수 TS (런타임 의존 없음) | 파이프라인 중간 산출물 타입, 화자 배정·발화 병합, 화자 재군집(조각 분할·k-means·중심 병합), 복사 포맷, 음량 정규화 공식, 참석자 수 규칙, 오디오 형식 상수, 용어 읽기 사전 |
 | `packages/models` | `@meeting-stt/models` | 순수 TS (데이터) | 모델 카탈로그 SSOT. 데스크탑 자산(URL·sha256·용량)과 웹 저장소 id·dtype |
+| `apps/collector` (`test/usage-analytics` 전용) | `@meeting-stt/collector` | Node 22 서버 (Hono + `node:sqlite`) | 사용 정보·회의 내용 수집 서버. 팀 토큰 검증, 이벤트·스냅샷·녹음 파일 수신 (`telemetry.md`) |
+| `packages/telemetry` (`test/usage-analytics` 전용) | `@meeting-stt/telemetry` | 순수 TS | 데스크탑(보내는 쪽)과 수집 서버(받는 쪽)가 공유하는 이벤트 이름·payload 타입·envelope 스키마 |
 | `packages/design` | `@meeting-stt/design` | CSS + 글꼴 파일 (런타임 코드 없음) | 디자인 토큰(`base.css`)과 동봉 글꼴(`fonts.css`, `fonts/`) SSOT. 두 앱이 같은 "여백" 화면을 그린다 |
 
 - **의존 방향은 한 방향**이다: `apps/* → packages/*`. 패키지가 앱을 import하지 않고, 패키지끼리도 의존하지 않는다.

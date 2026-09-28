@@ -19,14 +19,9 @@ const SETTINGS: AppSettings = {
   isAudioKept: false,
   isUpdateCheckEnabled: false,
   isQuietProcessing: false,
-  isWidgetEnabled: true,
-  isWidgetFadeEnabled: true,
-  widgetFadeOpacity: 0.55,
   recordingShortcut: 'Alt+Command+R',
-  widgetShortcut: 'Alt+Command+W',
   inputDevice: null,
   locale: 'ko',
-  theme: 'system',
   isAutoRefineExternal: false
 }
 

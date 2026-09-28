@@ -57,7 +57,31 @@ const MIGRATIONS = [
   `,
   // 5: 교정이 처음 바꾸기 전 원문 (2026-09-28). 문장 교정은 고치는 범위가 넓어 발화별로 되돌릴 수 있게 한다
   //    (references/data-model.md "자동 교정 결과 저장")
-  'ALTER TABLE utterances ADD COLUMN original_text TEXT;'
+  'ALTER TABLE utterances ADD COLUMN original_text TEXT;',
+  // 6: 사용 정보 outbox와 녹음 업로드 상태 (test/usage-analytics 브랜치 전용, references/data-model.md "사용 정보 outbox").
+  //    업로드 행은 회의가 지워져도 워커가 정리하도록 FK를 걸지 않는다
+  `
+  CREATE TABLE IF NOT EXISTS telemetry_outbox (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    sink            TEXT NOT NULL,
+    kind            TEXT NOT NULL,
+    payload         TEXT NOT NULL,
+    created_at      INTEGER NOT NULL,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_telemetry_outbox_due ON telemetry_outbox(sink, next_attempt_at);
+
+  CREATE TABLE IF NOT EXISTS telemetry_uploads (
+    meeting_id      TEXT PRIMARY KEY,
+    audio_path      TEXT NOT NULL,
+    total_bytes     INTEGER NOT NULL,
+    uploaded_bytes  INTEGER NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at INTEGER NOT NULL
+  );
+  `
 ]
 
 export const migrate = (db: Database) => {

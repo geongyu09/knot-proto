@@ -6,9 +6,8 @@
 
 import type { MergedUtterance } from '@meeting-stt/core/types'
 import type { Locale } from './i18n'
-import type { ThemePreference } from './theme'
 
-export type { Locale, ThemePreference }
+export type { Locale }
 export type {
   MergedUtterance,
   SpeakerPiece,
@@ -64,25 +63,12 @@ export interface AppSettings {
   isUpdateCheckEnabled: boolean
   /** 조용히 처리. 켜면 화자 분리 스레드를 줄이고 STT와 순차로 돌려 느린 대신 발열·팬 소음을 줄인다. 기본은 꺼짐 */
   isQuietProcessing: boolean
-  /**
-   * 녹음 위젯 패널을 화면에 띄울지. 기본은 켜짐이며, 꺼도 메뉴바·전역 단축키로 녹음할 수 있다
-   * (창 자체는 오디오 그래프 소유자라 항상 만든다, references/architecture.md)
-   */
-  isWidgetEnabled: boolean
-  /** 위젯 패널이 포커스를 잃으면 반투명하게 할지. 기본은 켜짐 */
-  isWidgetFadeEnabled: boolean
-  /** 포커스가 없을 때의 위젯 불투명도 (0.2~0.95) */
-  widgetFadeOpacity: number
   /** 녹음 토글 전역 단축키 (Electron accelerator, `src/shared/shortcut.ts`) */
   recordingShortcut: string
-  /** 위젯 표시/숨김 전역 단축키. 녹음 단축키와 같을 수 없다 */
-  widgetShortcut: string
   /** 녹음에 쓸 마이크. null이면 시스템 기본 마이크. 장치가 빠져 있으면 녹음은 기본 마이크로 폴백한다 */
   inputDevice: AudioInputDevice | null
   /** UI 언어 (기본 'ko'). 인식·요약 언어가 아니라 화면·메뉴바·오류 문구의 언어다 (`src/shared/i18n.ts`) */
   locale: Locale
-  /** 화면 테마 (기본 'system'). main이 `nativeTheme.themeSource`로 모든 창에 적용한다 (`src/shared/theme.ts`) */
-  theme: ThemePreference
   /**
    * 외부 LLM 공급자일 때 회의록이 만들어지면 자동으로 문장 교정할지. 기본은 꺼짐 —
    * 켜면 회의가 끝날 때마다 회의록이 그 회사 서버로 전송된다 (references/architecture.md "회의록 교정")

@@ -33,12 +33,6 @@ import { readGlossarySettings, readTeamDescription } from '@shared/glossary'
 import { isLlmProvider, isOpenaiModelId, readApiKeyPayload } from '@shared/llm'
 import { isValidAccelerator } from '@shared/shortcut'
 import { isLocale } from '@shared/i18n'
-import { isThemePreference } from '@shared/theme'
-import {
-  isWidgetFadeOpacity,
-  MAX_WIDGET_FADE_OPACITY,
-  MIN_WIDGET_FADE_OPACITY
-} from '@shared/widget'
 import {
   isValidSpeakerCount,
   MAX_SPEAKER_COUNT,
@@ -63,6 +57,7 @@ import { getRefineResult, revertUtteranceRefine } from '../db/refine'
 import {
   getAppSettings,
   getGlossarySettings,
+  getSystemAudioEnabled,
   setLlmProvider,
   setOpenaiModel,
   setWhisperModelId,
@@ -78,7 +73,6 @@ import type { ModelDownloadProgress } from '../models/download'
 import { isWhisperModelId } from '@meeting-stt/models/desktop'
 import { notifyMeetingsChanged } from '../meetingsChanged'
 import { setCurrentLocale, t } from '../locale'
-import { applyTheme } from '../theme'
 import { downloadModels, downloadSummaryModel, modelStatus } from '../models/service'
 import { enqueueGlossaryDraft, enqueueRefineJob, enqueueSummaryJob } from '../pipeline/queue'
 import { reprocessMeeting } from '../pipeline/reprocess'
@@ -86,7 +80,10 @@ import { checkForUpdatesNow, downloadUpdate, installUpdate } from '../updater'
 import { showMainWindow } from '../windows/main'
 import { replaceGlobalShortcuts, setGlobalShortcutsSuspended } from '../windows/shortcuts'
 import { refreshTray } from '../windows/tray'
-import { applyWidgetOpacity, requestRecordingCommand, setWidgetVisible } from '../windows/widget'
+import { requestRecordingCommand } from '../windows/recorder'
+import { trackRendererEvent } from '../telemetry/rendererEvents'
+import { changedSettingKeys } from '../telemetry/settingsDiff'
+import { track, trackMeetingDeleted, trackMeetingEdit } from '../telemetry/track'
 
 const FULL_PERCENT = 100
 
@@ -180,20 +177,6 @@ const readBoolean = ({ payload, key }: { payload: unknown; key: string }) => {
   return payload[key]
 }
 
-const readFadeOpacity = (payload: unknown) => {
-  const value = isRecord(payload) ? payload.widgetFadeOpacity : undefined
-  if (!isWidgetFadeOpacity(value)) {
-    throw new Error(
-      t().main.errors.fadeOpacityRange({
-        min: MIN_WIDGET_FADE_OPACITY,
-        max: MAX_WIDGET_FADE_OPACITY
-      })
-    )
-  }
-
-  return value
-}
-
 const readShortcut = ({ payload, key }: { payload: unknown; key: string }) => {
   const value = isRecord(payload) ? payload[key] : undefined
   if (typeof value !== 'string' || !isValidAccelerator(value)) {
@@ -220,25 +203,13 @@ const readLocale = (payload: unknown) => {
   return value
 }
 
-const readTheme = (payload: unknown) => {
-  const value = isRecord(payload) ? payload.theme : undefined
-  if (!isThemePreference(value)) throw new Error(t().main.errors.unknownTheme)
-
-  return value
-}
-
 const readSettings = (payload: unknown) => ({
   isAudioKept: readBoolean({ payload, key: 'isAudioKept' }),
   isUpdateCheckEnabled: readBoolean({ payload, key: 'isUpdateCheckEnabled' }),
   isQuietProcessing: readBoolean({ payload, key: 'isQuietProcessing' }),
-  isWidgetEnabled: readBoolean({ payload, key: 'isWidgetEnabled' }),
-  isWidgetFadeEnabled: readBoolean({ payload, key: 'isWidgetFadeEnabled' }),
-  widgetFadeOpacity: readFadeOpacity(payload),
   recordingShortcut: readShortcut({ payload, key: 'recordingShortcut' }),
-  widgetShortcut: readShortcut({ payload, key: 'widgetShortcut' }),
   inputDevice: readInputDevice(payload),
   locale: readLocale(payload),
-  theme: readTheme(payload),
   isAutoRefineExternal: readBoolean({ payload, key: 'isAutoRefineExternal' })
 })
 
@@ -328,6 +299,7 @@ const handleRenameMeeting = (payload: unknown) => {
 
   if (!renameMeeting({ meetingId, title })) throw new Error(t().main.errors.meetingNotFound)
   notifyMeetingsChanged()
+  trackMeetingEdit({ name: 'meeting_renamed', meetingId })
 
   return requireMeetingDetail({ meetingId })
 }
@@ -339,12 +311,15 @@ const handleDeleteMeeting = async (payload: unknown) => {
     throw new Error(t().main.errors.meetingNotFound)
   }
   notifyMeetingsChanged()
+  trackMeetingDeleted({ meetingId })
 }
 
 /** 참석자 수를 비우면(null) 임계값 폴백으로 다시 인식한다 */
 const handleReprocessMeeting = (payload: unknown) => {
   const meetingId = readMeetingId(payload)
-  reprocessMeeting({ meetingId, speakerCount: readSpeakerCount(payload) ?? null })
+  const speakerCount = readSpeakerCount(payload) ?? null
+  reprocessMeeting({ meetingId, speakerCount })
+  track({ name: 'meeting_reprocessed', props: { meetingId, speakerCount } })
 
   return requireMeetingDetail({ meetingId })
 }
@@ -374,6 +349,7 @@ const handleUpdateUtteranceText = (payload: unknown) => {
     })
   })
   if (!changed) throw new Error(t().main.errors.utteranceNotFound)
+  trackMeetingEdit({ name: 'utterance_edited', meetingId })
 
   return requireMeetingDetail({ meetingId })
 }
@@ -389,6 +365,7 @@ const handleReassignUtterance = (payload: unknown) => {
     speakerLabel
   })
   if (!changed) throw new Error(t().main.errors.utteranceNotFound)
+  trackMeetingEdit({ name: 'utterance_reassigned', meetingId })
 
   return requireMeetingDetail({ meetingId })
 }
@@ -398,6 +375,7 @@ const handleRevertUtteranceRefine = (payload: unknown) => {
   const meetingId = readMeetingId(payload)
   const changed = revertUtteranceRefine({ meetingId, utteranceId: readUtteranceId(payload) })
   if (!changed) throw new Error(t().main.errors.utteranceNotFound)
+  trackMeetingEdit({ name: 'refine_reverted', meetingId })
 
   return requireMeetingDetail({ meetingId })
 }
@@ -415,6 +393,7 @@ const handleRenameSpeaker = (payload: unknown) => {
     })
   })
   if (!changed) throw new Error(t().main.errors.speakerNotInMeeting)
+  trackMeetingEdit({ name: 'speaker_renamed', meetingId })
 
   return requireMeetingDetail({ meetingId })
 }
@@ -428,6 +407,7 @@ const handleMergeSpeakers = (payload: unknown) => {
   requireSpeaker({ meetingId, label: fromLabel })
   requireSpeaker({ meetingId, label: intoLabel })
   mergeSpeakers({ meetingId, fromLabel, intoLabel })
+  trackMeetingEdit({ name: 'speakers_merged', meetingId })
 
   return requireMeetingDetail({ meetingId })
 }
@@ -469,7 +449,7 @@ const broadcastModelDownloadProgress = ({
   })
 }
 
-/** 요청한 창은 응답으로 새 상태를 받지만, 위젯 창은 이 알림이 없으면 앱 시작 때 읽은 상태에 머문다 */
+/** 요청한 창은 응답으로 새 상태를 받지만, 녹음 호스트 창은 이 알림이 없으면 앱 시작 때 읽은 상태에 머문다 */
 const broadcastModelsChanged = (status: DownloadModelsResponse) => {
   BrowserWindow.getAllWindows().forEach((window) => {
     window.webContents.send(IPC.events.modelsChanged)
@@ -491,18 +471,29 @@ const handleDownloadModels = async (payload: unknown): Promise<DownloadModelsRes
 export const registerIpcHandlers = () => {
   ipcMain.handle(IPC.recording.requestPermission, () => requestMicrophonePermission())
 
-  ipcMain.handle(IPC.recording.start, (_event, payload): Promise<StartRecordingResponse> =>
-    startRecording({ sampleRate: readSampleRate(payload) })
-  )
+  ipcMain.handle(IPC.recording.start, async (_event, payload): Promise<StartRecordingResponse> => {
+    const response = await startRecording({ sampleRate: readSampleRate(payload) })
+    track({ name: 'recording_started', props: { isSystemAudio: getSystemAudioEnabled() } })
+
+    return response
+  })
 
   ipcMain.handle(IPC.recording.chunk, (_event, payload) =>
     appendRecordingChunk({ meetingId: readMeetingId(payload), pcm: readPcm(payload) })
   )
 
-  // 녹음을 끝낸 직후에 보고 싶은 것은 결과 화면이다. 위젯에서 정지했다면 메인 창이 뒤에 있다
+  // 녹음을 끝낸 직후에 보고 싶은 것은 결과 화면이다. 메뉴바·단축키로 정지했다면 메인 창이 뒤에 있다
   ipcMain.handle(IPC.recording.stop, async (_event, payload): Promise<StopRecordingResponse> => {
     const meeting = await stopRecording({ meetingId: readMeetingId(payload) })
     showMainWindow()
+    track({
+      name: 'recording_stopped',
+      props: {
+        meetingId: meeting.id,
+        durationSec: meeting.durationSec,
+        speakerCount: meeting.speakerCount ?? null
+      }
+    })
 
     return meeting
   })
@@ -517,9 +508,13 @@ export const registerIpcHandlers = () => {
     setRecordingSpeakerCount(readSpeakerCount(payload))
   )
 
-  ipcMain.handle(IPC.recording.setLiveTranscript, (_event, payload): GetRecordingStateResponse =>
-    setRecordingLiveTranscript(readBoolean({ payload, key: 'isEnabled' }))
-  )
+  ipcMain.handle(IPC.recording.setLiveTranscript, (_event, payload): GetRecordingStateResponse => {
+    const isEnabled = readBoolean({ payload, key: 'isEnabled' })
+    const state = setRecordingLiveTranscript(isEnabled)
+    track({ name: 'live_transcript_toggled', props: { isEnabled } })
+
+    return state
+  })
 
   ipcMain.handle(IPC.recording.setPaused, (_event, payload): GetRecordingStateResponse =>
     setRecordingPaused(readBoolean({ payload, key: 'isPaused' }))
@@ -527,8 +522,13 @@ export const registerIpcHandlers = () => {
 
   ipcMain.handle(
     IPC.recording.setSystemAudio,
-    (_event, payload): Promise<GetRecordingStateResponse> =>
-      setRecordingSystemAudio(readBoolean({ payload, key: 'isEnabled' }))
+    async (_event, payload): Promise<GetRecordingStateResponse> => {
+      const isEnabled = readBoolean({ payload, key: 'isEnabled' })
+      const state = await setRecordingSystemAudio(isEnabled)
+      track({ name: 'system_audio_toggled', props: { isEnabled } })
+
+      return state
+    }
   )
 
   ipcMain.handle(IPC.recording.reportError, (_event, payload) =>
@@ -540,10 +540,6 @@ export const registerIpcHandlers = () => {
         label: t().main.fields.errorMessage
       })
     })
-  )
-
-  ipcMain.handle(IPC.widget.setVisible, (_event, payload) =>
-    setWidgetVisible({ isVisible: readBoolean({ payload, key: 'isVisible' }) })
   )
 
   ipcMain.handle(IPC.meetings.list, (): GetMeetingsResponse => listMeetings())
@@ -569,15 +565,27 @@ export const registerIpcHandlers = () => {
   // 저장 위치 대화상자가 닫힐 때까지 기다린다. 취소는 isSaved: false로 알린다
   ipcMain.handle(
     IPC.meetings.exportAudio,
-    async (_event, payload): Promise<ExportMeetingAudioResponse> => ({
-      isSaved: await exportRecording({ meetingId: readMeetingId(payload) })
-    })
+    async (_event, payload): Promise<ExportMeetingAudioResponse> => {
+      const meetingId = readMeetingId(payload)
+      const isSaved = await exportRecording({ meetingId })
+      if (isSaved) track({ name: 'meeting_audio_exported', props: { meetingId } })
+
+      return { isSaved }
+    }
   )
 
   // 열기 대화상자와 변환이 끝날 때까지 기다린다. 취소는 meeting: null로 알린다
-  ipcMain.handle(IPC.meetings.import, async (): Promise<ImportMeetingAudioResponse> => ({
-    meeting: await importRecording()
-  }))
+  ipcMain.handle(IPC.meetings.import, async (): Promise<ImportMeetingAudioResponse> => {
+    const meeting = await importRecording()
+    if (meeting) {
+      track({
+        name: 'recording_imported',
+        props: { meetingId: meeting.id, durationSec: meeting.durationSec }
+      })
+    }
+
+    return { meeting }
+  })
 
   ipcMain.handle(IPC.utterances.updateText, (_event, payload): MutateMeetingResponse =>
     handleUpdateUtteranceText(payload)
@@ -600,30 +608,25 @@ export const registerIpcHandlers = () => {
 
   ipcMain.handle(IPC.settings.get, (): GetSettingsResponse => getAppSettings())
 
-  // 설정이 정하는 것은 패널이 보이는지 여부뿐이다 — 창은 그래프 소유자라 계속 살아 있다.
-  // 값이 바뀐 경우에만 적용한다. 그러지 않으면 ✕로 숨긴 패널이 다른 설정을 저장할 때 되살아난다
   // 단축키는 등록을 먼저 시도하고 성공했을 때만 저장한다 — 실패하면 이전 단축키로 되돌아가 있다
   ipcMain.handle(IPC.settings.update, (_event, payload): UpdateSettingsResponse => {
     const previous = getAppSettings()
     const next = readSettings(payload)
 
-    const isShortcutChanged =
-      next.recordingShortcut !== previous.recordingShortcut ||
-      next.widgetShortcut !== previous.widgetShortcut
-    if (isShortcutChanged) replaceGlobalShortcuts({ next, previous })
+    if (next.recordingShortcut !== previous.recordingShortcut) {
+      replaceGlobalShortcuts({ next, previous })
+    }
 
     const settings = updateAppSettings(next)
+    changedSettingKeys({ previous, next: settings }).forEach((key) =>
+      track({ name: 'setting_changed', props: { key } })
+    )
 
-    if (settings.isWidgetEnabled !== previous.isWidgetEnabled) {
-      setWidgetVisible({ isVisible: settings.isWidgetEnabled })
-    }
-    applyWidgetOpacity()
-    // 메뉴바 문구는 언어를 따르고, 위젯 창은 push로만 새 설정을 안다 (references/architecture.md "UI 언어")
+    // 메뉴바 문구는 언어를 따르고, 녹음 호스트 창은 push로만 새 설정을 안다 (references/architecture.md "UI 언어")
     if (settings.locale !== previous.locale) {
       setCurrentLocale(settings.locale)
       refreshTray()
     }
-    if (settings.theme !== previous.theme) applyTheme(settings.theme)
     BrowserWindow.getAllWindows().forEach((window) => {
       window.webContents.send(IPC.events.settingsChanged, settings)
     })
@@ -663,9 +666,12 @@ export const registerIpcHandlers = () => {
 
   ipcMain.handle(IPC.glossary.get, (): GetGlossaryResponse => getGlossarySettings())
 
-  ipcMain.handle(IPC.glossary.update, (_event, payload): UpdateGlossaryResponse =>
-    updateGlossarySettings(readGlossarySettings(payload, t().glossary.errors))
-  )
+  ipcMain.handle(IPC.glossary.update, (_event, payload): UpdateGlossaryResponse => {
+    const glossary = updateGlossarySettings(readGlossarySettings(payload, t().glossary.errors))
+    track({ name: 'glossary_updated', props: { termCount: glossary.terms.length } })
+
+    return glossary
+  })
 
   ipcMain.handle(IPC.glossary.draft, async (_event, payload): Promise<DraftGlossaryResponse> => ({
     terms: await enqueueGlossaryDraft({
@@ -676,7 +682,9 @@ export const registerIpcHandlers = () => {
   ipcMain.handle(IPC.llm.status, (): Promise<GetLlmStatusResponse> => getLlmStatus())
 
   ipcMain.handle(IPC.llm.setProvider, (_event, payload): Promise<SetLlmProviderResponse> => {
-    setLlmProvider({ provider: readLlmProvider(payload) })
+    const provider = readLlmProvider(payload)
+    setLlmProvider({ provider })
+    track({ name: 'llm_provider_changed', props: { provider } })
 
     return getLlmStatus()
   })
@@ -691,4 +699,7 @@ export const registerIpcHandlers = () => {
 
   // 짧은 프롬프트 한 번이라 큐를 거치지 않는다 (references/architecture.md "LLM 공급자")
   ipcMain.handle(IPC.llm.check, (): Promise<CheckLlmResponse> => checkLlm())
+
+  // 응답 없음. 걸러서 outbox에 넣기만 한다 (references/telemetry.md "싱크별 규칙")
+  ipcMain.handle(IPC.telemetry.track, (_event, payload) => trackRendererEvent(payload))
 }

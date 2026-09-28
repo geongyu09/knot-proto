@@ -6,23 +6,18 @@ export const mainKo = {
   tray: {
     startRecording: '녹음 시작',
     stopRecording: '녹음 정지',
-    toggleWidget: '위젯 표시/숨김',
     openMainWindow: '메인 창 열기',
     quit: '종료'
   },
   errors: {
     unknownLocale: '알 수 없는 언어입니다',
-    unknownTheme: '알 수 없는 화면 테마입니다',
     invalidRequest: ({ what }: { what: string }) => `잘못된 요청입니다 (${what} 없음)`,
     fieldEmpty: ({ label }: { label: string }) => `${label}을(를) 비워 둘 수 없습니다`,
     fieldTooLong: ({ label, maxLength }: { label: string; maxLength: number }) =>
       `${label}이(가) 너무 깁니다 (최대 ${maxLength}자)`,
     speakerCountRange: ({ min, max }: { min: number; max: number }) =>
       `참석자 수는 ${min}~${max} 사이의 정수여야 합니다`,
-    fadeOpacityRange: ({ min, max }: { min: number; max: number }) =>
-      `위젯 불투명도는 ${min}~${max} 사이여야 합니다`,
     shortcutInvalid: '단축키는 ⌘·⌥·⌃ 중 하나 이상과 문자·숫자·기능키를 함께 눌러 지정해 주세요',
-    shortcutsMustDiffer: '녹음 단축키와 위젯 단축키를 다르게 지정해 주세요',
     shortcutRegisterFailed: ({ shortcuts }: { shortcuts: string }) =>
       `단축키 ${shortcuts}를 등록하지 못했습니다. 다른 앱이 쓰는 중일 수 있습니다`,
     inputDeviceInvalid: '입력 장치 정보가 올바르지 않습니다',
@@ -143,7 +138,9 @@ export const mainKo = {
   },
   update: {
     devMode: '개발 모드에서는 업데이트를 확인할 수 없습니다',
-    checkFailed: '업데이트를 확인하지 못했습니다. 네트워크 연결을 확인해 주세요'
+    checkFailed: '업데이트를 확인하지 못했습니다. 네트워크 연결을 확인해 주세요',
+    teamBuild:
+      '팀 테스트 빌드는 자동 업데이트를 쓰지 않습니다. 새 버전은 팀 배포 채널로 받아 주세요'
   }
 }
 
@@ -151,22 +148,18 @@ export const mainEn: typeof mainKo = {
   tray: {
     startRecording: 'Start recording',
     stopRecording: 'Stop recording',
-    toggleWidget: 'Show/hide widget',
     openMainWindow: 'Open main window',
     quit: 'Quit'
   },
   errors: {
     unknownLocale: 'Unknown language',
-    unknownTheme: 'Unknown theme',
     invalidRequest: ({ what }) => `Invalid request (missing ${what})`,
     fieldEmpty: ({ label }) => `${label} cannot be empty`,
     fieldTooLong: ({ label, maxLength }) => `${label} is too long (up to ${maxLength} characters)`,
     speakerCountRange: ({ min, max }) =>
       `The number of participants must be a whole number between ${min} and ${max}`,
-    fadeOpacityRange: ({ min, max }) => `Widget opacity must be between ${min} and ${max}`,
     shortcutInvalid:
       'A shortcut needs at least one of ⌘, ⌥ or ⌃ together with a letter, number or function key',
-    shortcutsMustDiffer: 'The recording and widget shortcuts must be different',
     shortcutRegisterFailed: ({ shortcuts }) =>
       `Could not register the shortcut ${shortcuts}. Another app may be using it`,
     inputDeviceInvalid: 'The input device information is invalid',
@@ -287,6 +280,8 @@ export const mainEn: typeof mainKo = {
   },
   update: {
     devMode: 'Updates cannot be checked in development mode',
-    checkFailed: 'Could not check for updates. Check your network connection'
+    checkFailed: 'Could not check for updates. Check your network connection',
+    teamBuild:
+      'Team test builds do not auto-update. Get new versions from the team distribution channel'
   }
 }

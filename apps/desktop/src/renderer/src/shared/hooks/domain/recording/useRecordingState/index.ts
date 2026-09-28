@@ -17,8 +17,8 @@ const IDLE_STATE: RecordingStateEvent = {
 }
 
 /**
- * 진행 중 녹음의 상태를 구독한다. 단일 출처는 main의 녹음 세션이고 위젯 패널과 메인 창이 같은 값을 본다
- * (references/architecture.md의 "녹음 위젯 패널").
+ * 진행 중 녹음의 상태를 구독한다. 단일 출처는 main의 녹음 세션이고 녹음 호스트 창과 메인 창이 같은 값을 본다
+ * (references/architecture.md의 "녹음 호스트 창 · 메뉴바 · 전역 단축키").
  */
 const useRecordingState = () => {
   const { t } = useLocale()

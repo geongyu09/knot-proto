@@ -1,5 +1,6 @@
 {
   "name": "meeting-stt",
+  "productName": "meeting-stt-team",
   "version": "0.2.5",
   "description": "서버 없이 로컬에서 동작하는 STT 회의록 데스크탑 앱 (whisper.cpp + sherpa-onnx)",
   "private": true,
@@ -25,6 +26,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
     "@electron-toolkit/utils": "^4.0.0",
+    "@sentry/electron": "^7.20.0",
     "better-sqlite3": "^13.0.3",
     "electron-updater": "^6.8.9",
     "openai": "^7.23.0",
@@ -36,6 +38,7 @@
     "@meeting-stt/core": "workspace:*",
     "@meeting-stt/design": "workspace:*",
     "@meeting-stt/models": "workspace:*",
+    "@meeting-stt/telemetry": "workspace:*",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.6",
     "@types/better-sqlite3": "^9.6.0",

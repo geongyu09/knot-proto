@@ -11,7 +11,7 @@
 │ recording:state 이벤트로 상태를 구독만 한다                 │
 │ 나머지는 window.api.* 호출 + 진행률 이벤트 구독             │
 └───────────────────────────┬────────────────────────────────┘
-┌────────── renderer: 위젯 패널 (#/widget, Phase 5-3) ───────┐
+┌────────── renderer: 녹음 호스트 (#/recorder, 숨은 창) ─────┐
 │ 오디오 그래프의 유일한 소유자                               │
 │ 녹음: getUserMedia → AudioContext(16kHz) → AudioWorklet    │
 │       → Float32 PCM 청크를 IPC로 main에 전달               │
@@ -20,7 +20,7 @@
 ┌───────────────────────────┴──── main (Node) ───────────────┐
 │ audio/   PCM 청크 → WAV 파일 append, 종료 시 헤더 확정      │
 │          녹음 세션 상태(진행 중 회의·시작 시각·참석자 수) 보유 │
-│ windows/ 메인 창·위젯 패널 생성과 배치, Tray, 전역 단축키    │
+│ windows/ 메인 창·녹음 호스트 창 생성, Tray, 전역 단축키      │
 │ pipeline/ 잡 큐(순차) → normalize → whisper(VAD 내장) → diarize → merge │
 │ db/      better-sqlite3, 마이그레이션, 리포지토리           │
 │ models/  모델 경로 해석, 다운로드(Range/체크섬), 존재 확인   │
@@ -63,7 +63,7 @@ src/
   main/
     index.ts                  # 앱 수명주기, 권한 요청, ipc 등록
     log.ts                    # 운영 로그 (console 직접 호출 금지)
-    windows/{main,widget,tray,shortcuts}.ts   # 메인 창·위젯 패널·메뉴바·전역 단축키 (Phase 5-3)
+    windows/{main,recorder,tray,shortcuts}.ts   # 메인 창·녹음 호스트 창·메뉴바·전역 단축키 (Phase 5-3)
     audio/{session,wavWriter,recordings}.ts   # 녹음 세션 상태·WAV append·파일 정리
     pipeline/{queue,run,normalize,whisper,diarize}.ts   # normalize는 RMS 게인 정규화(공식·상수는 @meeting-stt/core), vad는 whisper 내장이라 별도 단계 없음
     pipeline/{recluster,speakerEmbedding,embedWorker}.ts   # 화자 재군집 — CLI 구간 재임베딩(sherpa-onnx-node, utilityProcess) + k-means(@meeting-stt/core/cluster) (2026-09-25)
@@ -81,13 +81,13 @@ src/
     main.tsx, App.tsx
     assets/{main.css,layout.css}   # 진입 CSS(@meeting-stt/design의 fonts.css·base.css를 import)·데스크탑 레이아웃 치수 (아래 "화면 디자인" 절)
     worklet/pcmRecorder.js    # AudioWorkletProcessor (Vite `?url` import로 로드)
-    pages/{Onboarding,Home,Record,MeetingDetail,Settings,Widget}/index.tsx   # widgets 배치만
+    pages/{Onboarding,Home,Record,MeetingDetail,Settings,RecorderHost}/index.tsx   # widgets 배치만
     shared/routes/{index.tsx,paths.ts,guards.tsx,layout.tsx}   # 라우터·경로 상수·온보딩 진입 가드·메인 창 레이아웃(정지 후 상세 이동)
     modules/widgets/{domain}/…    # section 단위 도메인 컴포넌트 (TranscriptSection, SettingsSection 등)
     modules/features/{domain}/…   # 작은 도메인 컴포넌트 (PipelineProgress 등)
     shared/api/{domain}/index.ts  # window.api 래퍼 (유일한 window.api 접점)
     shared/components/{primitives,composites}/…
-    shared/hooks/{common,domain}/…   # useRecorder(위젯 전용), useRecordingState, useMeetings, usePipelineProgress
+    shared/hooks/{common,domain}/…   # useRecorder(녹음 호스트 전용), useRecordingState, useMeetings, usePipelineProgress
     shared/{provider,routes,utils,constants,types}/
     # 레이어·콜로케이션·세그먼트·훅 위치 규칙은 .claude/rules/*.md 를 따른다
 ```
@@ -121,10 +121,9 @@ export const IPC = {
   //   summary.create, events.summary
   //   glossary.get / glossary.update / glossary.draft (Phase 5-4, 아래 "용어 사전" 절)
   //   refine.run, events.refine (Phase 5-4, 아래 "회의록 교정" 절 — 파이프라인 뒤 자동 실행, run은 수동 재실행)
-  // Phase 5-3 (아래 "녹음 위젯 패널" 절)
+  // Phase 5-3 (아래 "녹음 호스트 창 · 메뉴바 · 전역 단축키" 절)
   //   recording.state / recording.control / recording.setSpeakerCount / recording.reportError
   //   events.recordingState / events.recordingCommand
-  //   widget.setVisible
   //   shortcuts.setSuspended (단축키 설정, 아래 "전역 단축키" 절)
   // UI 리디자인 (아래 "화면 디자인" 절)
   //   meetings.search, events.meetingsChanged
@@ -137,8 +136,10 @@ export const IPC = {
   // 라이브 받아쓰기 (아래 같은 이름의 절)
   //   recording.setLiveTranscript (결과는 events.recordingState의 liveTranscript로 push)
   //   recording.setSystemAudio (결과는 events.recordingState의 systemAudio로 push, Phase 5-2)
-  // 녹음 일시정지 (아래 "녹음 위젯 패널" > "일시정지·재개" 절)
+  // 녹음 일시정지 (아래 "녹음 호스트 창 · 메뉴바 · 전역 단축키" > "일시정지·재개" 절)
   //   recording.setPaused (결과는 events.recordingState의 pausedAt으로 push)
+  // 사용 정보 수집 (test/usage-analytics 브랜치 전용, references/telemetry.md)
+  //   telemetry.track (renderer → main, 응답 없음. main이 이름 허용 목록·props 모양을 다시 거른다)
 } as const
 ```
 
@@ -148,13 +149,12 @@ export const IPC = {
 | 키 | 채널 | 방향 | 용도 |
 | --- | --- | --- | --- |
 | `recording.state` | `recording:state` | invoke | 지금 녹음 중인지 조회. 늦게 열린 창이 현재 상태를 안다 |
-| `recording.control` | `recording:control` | invoke | 메인 창이 보내는 시작/정지 요청. main이 위젯에 `recording:command`로 넘긴다 |
+| `recording.control` | `recording:control` | invoke | 메인 창이 보내는 시작/정지 요청. main이 호스트 창에 `recording:command`로 넘긴다 |
 | `recording.setSpeakerCount` | `recording:setSpeakerCount` | invoke | 두 창의 참석자 수 입력을 main 세션에 모은다 |
-| `recording.reportError` | `recording:reportError` | invoke | 위젯에서만 알 수 있는 실패(마이크 권한·그래프 생성)를 세션에 기록 |
-| `widget.setVisible` | `widget:setVisible` | invoke | 패널의 숨기기 버튼 |
+| `recording.reportError` | `recording:reportError` | invoke | 호스트 창에서만 알 수 있는 실패(마이크 권한·그래프 생성)를 세션에 기록 |
 | `shortcuts.setSuspended` | `shortcuts:setSuspended` | invoke | 설정 화면에서 단축키를 입력받는 동안 전역 단축키를 잠시 해제·복구 |
 | `events.recordingState` | `recording:stateChanged` | push | 녹음 상태 브로드캐스트 |
-| `events.recordingCommand` | `recording:command` | push | main → 위젯 지시 (전역 단축키·Tray·메인 창) |
+| `events.recordingCommand` | `recording:command` | push | main → 호스트 창 지시 (전역 단축키·Tray·메인 창) |
 | `recording.setLiveTranscript` | `recording:setLiveTranscript` | invoke | 녹음 화면의 파형 ↔ 라이브 받아쓰기 보기 전환 (2026-09-26, 아래 "라이브 받아쓰기" 절) |
 | `recording.setSystemAudio` | `recording:setSystemAudio` | invoke | 온라인 회의 소리(스피커 출력) 함께 녹음 켜기/끄기. 켜면 도구를 1초 돌려 권한 창을 띄운다 (Phase 5-2, 아래 "시스템 오디오 캡처" 절) |
 | `recording.setPaused` | `recording:setPaused` | invoke | 녹음 일시정지·재개 (2026-09-26, 아래 "일시정지·재개" 절) |
@@ -451,7 +451,7 @@ CoreML이 느린 원인은 **임베딩 모델 입력 길이가 호출마다 달�
   1. `dialog.showOpenDialog`(메인 창 시트, 파일 하나) — 취소하면 `{ meeting: null }`, 오류 아님. 열기 대화상자는 확인 UI가 아니므로 "네이티브 대화상자 금지"의 대상이 아니다.
   2. 회의 ID를 정하고 `afconvert`로 변환. 실패하면 반쯤 쓴 출력 파일을 지우고 안내 문구를 던진다. **회의 행은 변환이 성공한 뒤에 만든다** — 못 읽은 파일로 빈 오류 회의가 목록에 남지 않는다.
   3. WAV 헤더의 `data` 크기로 길이를 계산한다. `MIN_RECORDING_SEC`(1초) 미만이면 녹음과 같은 "너무 짧음" 오류로 끝낸다(파일은 남기지 않는다).
-  4. `insertMeeting` → `duration_sec`·참석자 수 저장 → `status='processing'` → 파이프라인 잡 큐. 큐에서 기다리는 동안 사이드바가 "녹음 중"이 아니라 처리 대기로 보이도록 바로 `processing`으로 둔다.
+  4. `insertMeeting` → `duration_sec`·참석자 수 저장 → `status='processing'` → 파이프라인 잡 큐. 큐에서 기다리는 동안 회의 목록이 "녹음 중"이 아니라 처리 대기로 보이도록 바로 `processing`으로 둔다.
 - **제목**은 파일 이름(확장자 제외, 200자까지)이고 비어 있으면 녹음과 같은 기본 제목. **생성 시각**은 가져온 시각이다 — 파일의 수정 시각은 복사·동기화로 쉽게 바뀌어 녹음 날짜를 보장하지 않는다.
 - **참석자 수**는 녹음 화면 스테퍼의 값, 즉 main 녹음 세션의 보관값을 그대로 쓴다. 같은 화면의 입력이 녹음과 가져오기에 함께 적용되고, 값의 출처는 여전히 하나다.
 - **원본 파일은 건드리지 않는다.** 앱이 관리하는 것은 변환한 WAV뿐이고 `audio.keep` 보관 정책도 그 WAV에만 적용된다.
@@ -475,8 +475,8 @@ CoreML이 느린 원인은 **임베딩 모델 입력 길이가 호출마다 달�
 
 ## 녹음 (renderer)
 
-**오디오 그래프의 소유자는 위젯 패널 창 하나뿐이다** (Phase 5-3, 아래 절). 메인 창은 녹음을 시작·정지하는
-명령만 보내고 상태는 `recording:state`로 받는다. 아래 규칙은 그래프를 실제로 만드는 쪽(위젯)에 적용된다.
+**오디오 그래프의 소유자는 보이지 않는 녹음 호스트 창 하나뿐이다** (Phase 5-3, 아래 절). 메인 창은 녹음을 시작·정지하는
+명령만 보내고 상태는 `recording:state`로 받는다. 아래 규칙은 그래프를 실제로 만드는 쪽(호스트 창)에 적용된다.
 
 - `getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, deviceId? } })`.
   `deviceId`는 설정 `audio.inputDevice`가 있을 때만 `{ ideal: deviceId }`로 붙인다 (아래 "마이크 입력 장치와 테스트" 절).
@@ -488,11 +488,11 @@ CoreML이 느린 원인은 **임베딩 모델 입력 길이가 호출마다 달�
   단 Vite는 작은 에셋을 `data:` URL로 인라인하는데, renderer의 CSP가 `script-src 'self'`라 인라인되면 `addModule`이 차단된다.
   `electron.vite.config.ts`의 renderer `build.assetsInlineLimit`에서 워크릿만 인라인 대상에서 빼 **항상 파일로 내보낸다**.
 - 레벨 미터는 별도 `AnalyserNode`를 붙이지 않고 **main이 `recording:chunk`로 받은 청크의 RMS**를 계산해
-  `recording:state`에 실어 보낸다 (노드를 하나 덜 만들고, 위젯과 메인 창이 같은 값을 본다).
+  `recording:state`에 실어 보낸다 (노드를 하나 덜 만들고, 메인 창·메뉴바가 같은 값을 본다).
   RMS 계산은 `src/shared/audio.ts`의 순수 함수로 두고 vitest로 검증한다.
 - 정지 시 `IPC.recording.stop` → main이 WAV 헤더를 확정하고 파이프라인 잡을 큐에 넣는다.
-- **참석자 수(1~`MAX_SPEAKER_COUNT`=20, 정수)는 main의 녹음 세션이 들고 있는다.** 위젯과 메인 창 양쪽에 입력란이 있어
-  값의 출처가 둘이 되므로, 입력이 바뀔 때마다 `recording:setSpeakerCount`로 main에 보내고 `recording:state`로 양쪽을 동기화한다.
+- **참석자 수(1~`MAX_SPEAKER_COUNT`=20, 정수)는 main의 녹음 세션이 들고 있는다.** 입력란은 메인 창에만 있지만
+  녹음은 단축키·메뉴바로도 시작되므로, 입력이 바뀔 때마다 `recording:setSpeakerCount`로 main에 보내고 `recording:state`로 받는다.
   정지 시점에는 main이 보관값을 `meetings.speaker_count`에 저장해 화자 분리의 `num-clusters`로 쓴다.
   `StopRecordingRequest`에는 `speakerCount`를 싣지 않는다 — 두 경로가 생기면 "어느 쪽 값이 이겼는지"를 따져야 한다.
   비우면 임계값 폴백이며, 그 경우 화자가 과분할될 수 있다고 입력란 옆에 안내한다.
@@ -515,7 +515,7 @@ CoreML이 느린 원인은 **임베딩 모델 입력 길이가 호출마다 달�
   "시스템 기본 마이크" 선택지(`null`)가 그 역할이다. 라벨이 비어 있으면(권한 전) `requestMicrophonePermission` 뒤 짧게 `getUserMedia`를 열었다 닫아 라벨을 받고,
   그래도 비면 `마이크 N`으로 표기한다. `devicechange` 이벤트로 목록을 다시 읽는다. 저장된 장치가 목록에 없으면 `"<label> (연결되지 않음)"`을 비활성 선택지로 보여준다.
   main은 `session.setPermissionCheckHandler`에서 `media`를 허용한다 — Chromium이 라벨을 줄지 결정할 때 이 핸들러를 본다.
-- **마이크 테스트는 메인 창(설정 화면)에 짧게 사는 별도 그래프**다. "오디오 그래프 소유자는 위젯 창 하나"라는 규칙은 **녹음 그래프**에 대한 것이고,
+- **마이크 테스트는 메인 창(설정 화면)에 짧게 사는 별도 그래프**다. "오디오 그래프 소유자는 호스트 창 하나"라는 규칙은 **녹음 그래프**에 대한 것이고,
   테스트 그래프는 청크를 보내지 않고 세션도 만들지 않는다. 구성은 `getUserMedia(같은 제약) → AudioContext(16kHz) → MediaStreamSource → AnalyserNode → gain 0 → destination`이며
   100ms마다 `getFloatTimeDomainData`의 RMS(`@shared/audio`의 `rmsOf`)를 `level`로 들고 레벨 미터(`LevelWaveform`)에 넘긴다.
   16kHz 확인·권한 요청은 녹음과 같은 경로를 타므로 **녹음이 실패할 환경이면 테스트도 같은 안내로 실패한다** — 그것이 테스트의 목적이다.
@@ -525,53 +525,48 @@ CoreML이 느린 원인은 **임베딩 모델 입력 길이가 호출마다 달�
 - 화면은 설정 카테고리 **"마이크"** 하나에 두 행(입력 장치 select, 마이크 테스트 버튼 + 파형)이다. 훅은 `useInputDevices`·`useMicrophoneTest`
   (`shared/hooks/domain/recording`), 행 컴포넌트는 `SettingsSection/ui/{InputDeviceSelect,MicrophoneTest}.tsx`다.
 
-## 녹음 위젯 패널 (Phase 5-3)
+## 녹음 호스트 창 · 메뉴바 · 전역 단축키 (Phase 5-3)
 
-회의 중에 앱 창을 앞으로 꺼내지 않고도 녹음을 시작·정지하고, 녹음 중이라는 사실과 경과 시간을 항상 볼 수 있게 한다.
-구성은 **화면 우측에 떠 있는 플로팅 패널 + 메뉴바(Tray) 시간 표시 + 전역 단축키** 세 가지다.
+회의 중에 앱 창을 앞으로 꺼내지 않고도 녹음을 시작·정지하고, 녹음 중이라는 사실과 경과 시간을 볼 수 있게 한다.
+구성은 **메뉴바(Tray) 시간 표시 + 전역 단축키**이고, 오디오 그래프는 **보이지 않는 녹음 호스트 창**이 들고 있다.
+
+### 플로팅 위젯 패널 제거 (2026-09-28, `test/usage-analytics` 브랜치)
+
+Phase 5-3에서는 화면 우측에 떠 있는 플로팅 패널(`type: 'panel'`, alwaysOnTop, 반투명)이 오디오 그래프 소유자이자
+녹음 컨트롤이었다. 이 브랜치에서는 사용자 요청으로 **패널 UI를 없앤다** — 화면에 보이는 창, 위젯 설정(표시·반투명·불투명도·위치),
+위젯 표시/숨김 단축키, 트레이의 "위젯 표시/숨김" 항목, `widget:setVisible` 채널이 모두 사라진다.
+
+- **그래프 소유 창은 남긴다.** `getUserMedia`는 renderer 전용이고, 메인 창은 닫혀도 앱이 살아 있어 메뉴바·단축키로
+  녹음할 수 있어야 한다. 메인 창에 그래프를 두면 창을 닫는 순간 녹음이 끊긴다. 그래서 창은 만들되 **한 번도 보이지 않는다**(`show: false`).
+- 창은 `windows/recorder.ts`, 라우트는 `#/recorder`, 화면은 아무것도 그리지 않고 `useRecorder`만 도는 `recording/RecorderHostSection`이다.
+- 메인 창 녹음 화면(`RecorderSection`)이 유일한 시각적 녹음 컨트롤이다. 참석자 수 입력도 여기에만 있다.
+- 기존 사용자 DB에 남은 `widget.*`·`shortcut.widget` 키는 읽지 않을 뿐 지우지 않는다 (키-값 테이블이라 해가 없다).
 
 ### macOS WidgetKit 위젯을 만들지 않는 이유
 
 알림 센터·데스크탑에 놓는 진짜 macOS 위젯은 SwiftUI로 작성한 **앱 확장(Widget Extension)** 이어야 한다.
-Electron 번들에 Xcode로 따로 빌드한 확장을 끼워 넣고 App Group으로 상태를 공유하는 편법이 있지만,
 확장마다 별도 서명·notarization 대상이 늘고(`references/distribution.md` 6절), 녹음 상태를 프로세스 밖으로 한 번 더
 복제해야 하며, 버튼 동작은 `AppIntent`로 호스트 앱을 깨우는 우회가 필요하다. 얻는 것은 외형뿐이라 채택하지 않는다.
-**"위젯"은 이 문서에서 항상 아래의 Electron 플로팅 패널을 가리킨다.**
 
-### 창 속성과 배치
+### 호스트 창 속성과 라우트
 
 | 속성 | 값 | 이유 |
 | --- | --- | --- |
-| `frame` | `false` | 제목 표시줄 없는 패널. 드래그는 `-webkit-app-region: drag` 영역으로 |
-| `type` | `'panel'` | 다른 앱 위에 뜨면서 **키 입력 포커스를 뺏지 않는다**. 회의 중 타이핑을 방해하면 안 된다 |
-| `alwaysOnTop` | `true` (`setAlwaysOnTop(true, 'floating')`) | 브라우저·화상회의 창 위에 유지 |
-| `visibleOnAllWorkspaces` | `{ visibleOnFullScreen: true }` | 화상회의를 전체화면으로 쓰는 경우가 많다 |
-| `resizable` / `maximizable` | `false` | 고정 크기. 레이아웃 분기를 만들지 않는다 |
+| `show` | `false`, 이후에도 `show()`하지 않음 | 보이는 UI가 없다. 그래프만 든다 |
 | `skipTaskbar` | `true` | Dock·앱 전환기에 창이 두 개로 보이지 않게 |
-| `vibrancy` | `'popover'` | 네이티브 패널 질감. 배경색을 직접 칠하지 않는다. `'hud'`는 시스템 테마와 무관하게 어두운 재질이라 라이트 모드의 어두운 글자와 겹쳐 색이 깨진다 |
-| `visualEffectState` | `'active'` | 기본값(`followWindow`)은 창 포커스에 따라 재질이 바뀐다. 패널은 대부분 비활성 상태라 포커스를 받을 때마다 색이 튄다 |
-| 비활성 시 불투명도 | 포커스를 잃으면 `setOpacity(widgetFadeOpacity)`, 받으면 `1` | 회의 화면을 가리는 느낌을 줄인다. `showInactive`로 뜨므로 처음부터 반투명으로 시작한다. 설정 `widget.fade`(기본 켜짐)로 끄면 항상 `1`, 값은 `widget.fadeOpacity`(기본 0.55, 0.2~0.95) |
-| `backgroundThrottling` | **`false`** | 숨겨지거나 가려진 창은 타이머·메시지 처리가 throttling된다. 그래프 소유자가 이 창이라 필수 |
+| `backgroundThrottling` | **`false`** | 숨겨진 창은 타이머·메시지 처리가 throttling된다. 그래프 소유자가 이 창이라 필수 |
 
-- 위치는 `screen.getPrimaryDisplay().workArea` 기준으로 **우측 가장자리에 여백을 두고 세로 중앙**에 놓는다.
-  `bounds`가 아니라 `workArea`를 써야 메뉴바·Dock을 침범하지 않는다. 디스플레이 구성이 바뀌면(`screen`의 `display-metrics-changed`) 다시 계산한다.
-- 사용자가 패널을 옮기면 그 위치를 기억한다. 저장은 `settings` 테이블(`widget.bounds`)에 두고, 저장된 위치가
-  현재 디스플레이 밖이면 버리고 기본 위치로 되돌린다 (외장 모니터를 뺀 뒤 화면 밖에 남는 것을 막는다).
-
-### 라우트와 창 구성
-
-- 위젯은 **별도 HTML 엔트리를 만들지 않고** 같은 `index.html`의 해시 라우트 `#/widget`으로 띄운다
-  (`loadFile(..., { hash: '/widget' })` / 개발 모드는 `loadURL(url + '#/widget')`). **해시에 앞의 `/`를 빼면 `#widget`이 되어 라우트가 맞지 않는다**. `createHashRouter`를 쓰기 때문에 가능하고,
-  `electron.vite.config.ts`의 rollup input을 건드리지 않아 빌드 구성이 그대로다.
-- `/widget`은 `RequireModels` 가드 **밖**에 둔다. 가드 안에 두면 모델이 없을 때 위젯 창에 온보딩 화면이 뜬다.
-  대신 위젯이 `models:status`를 직접 조회해 준비 전이면 시작 버튼을 막고 "메인 창에서 모델을 먼저 준비해 주세요"를 보여준다.
-- 메인 창 참조를 `windows/main.ts`가 들고 있어야 한다. 기존 `BrowserWindow.getAllWindows()[0]` 방식은 위젯이 0번이 될 수 있어
-  **`app.on('activate')`의 재생성 조건과 `second-instance`의 포커스 대상이 깨진다.** 두 곳 모두 "메인 창이 없거나 파괴됐는지"로 바꾼다.
-- 창이 둘이므로 진행률·업데이트 브로드캐스트(`broadcast`)는 그대로 두 창에 간다. 위젯은 자기가 쓰지 않는 이벤트를 구독하지 않으면 그만이다.
+- **별도 HTML 엔트리를 만들지 않고** 같은 `index.html`의 해시 라우트 `#/recorder`로 띄운다
+  (`loadFile(..., { hash: '/recorder' })` / 개발 모드는 `loadURL(url + '#/recorder')`). **해시에 앞의 `/`를 빼면 `#recorder`가 되어 라우트가 맞지 않는다**.
+- `/recorder`는 `RequireModels` 가드 **밖**에 둔다. 가드 안에 두면 모델이 없을 때 온보딩 화면이 마운트돼 훅이 돌지 않는다.
+  대신 호스트가 `models:status`를 직접 조회해 준비 전이면 시작 명령을 오류(`modelNotReady`)로 돌려준다.
+- 메인 창 참조를 `windows/main.ts`가 들고 있어야 한다. `BrowserWindow.getAllWindows()[0]`은 호스트 창이 0번이 될 수 있어
+  **`app.on('activate')`의 재생성 조건과 `second-instance`의 포커스 대상이 깨진다.**
+- 창이 둘이므로 진행률·업데이트 브로드캐스트(`broadcast`)는 그대로 두 창에 간다. 호스트는 자기가 쓰지 않는 이벤트를 구독하지 않으면 그만이다.
 
 ### 녹음 상태의 단일 출처
 
-녹음이 두 창에서 보이므로 **진행 중 녹음의 상태는 main의 세션(`src/main/audio/session.ts`)이 단일 출처**가 된다.
+그래프(호스트 창)와 컨트롤(메인 창·메뉴바)이 떨어져 있으므로 **진행 중 녹음의 상태는 main의 세션(`src/main/audio/session.ts`)이 단일 출처**가 된다.
 
 ```ts
 export interface RecordingStateEvent {
@@ -585,13 +580,13 @@ export interface RecordingStateEvent {
   pausedAt: number | null
   /** 직전 청크의 RMS (0~1). 청크 주기(약 0.5초)로만 갱신된다 */
   level: number
-  /** 세션에 보관 중인 참석자 수. 두 창의 입력란을 같은 값으로 맞춘다 */
+  /** 세션에 보관 중인 참석자 수. 메인 창 입력란이 이 값을 보여 준다 */
   speakerCount?: number
   /** 정지가 끝난 순간 한 번만 실린다. 메인 창이 이 회의의 상세로 이동한다 */
   stoppedMeetingId?: string
   /**
-   * 시작·정지가 실패한 순간 한 번만 실린다. 마이크 권한 거부나 그래프 생성 실패는 위젯에서만 일어나는데,
-   * 시작을 누른 사람은 메인 창에 있을 수 있다. 실패를 세션에 모아 두 창이 같은 안내를 본다
+   * 시작·정지가 실패한 순간 한 번만 실린다. 마이크 권한 거부나 그래프 생성 실패는 호스트 창에서만 일어나는데,
+   * 시작을 누른 사람은 메인 창에 있을 수 있다. 실패를 세션에 모아 메인 창이 안내를 본다
    */
   errorMessage?: string
 }
@@ -599,23 +594,23 @@ export interface RecordingStateEvent {
 
 - **경과 시간을 이벤트로 보내지 않는다.** `startedAt`만 주고 각 창이 계산하면 IPC 횟수가 늘지 않고, 창이 가려져 렌더가 밀려도 값이 정확하다.
 - 창이 새로 열렸을 때를 위해 조회 채널 `recording:state`(invoke)를 함께 둔다. 이벤트만 있으면 늦게 연 창이 현재 상태를 모른다.
-- 전역 단축키·Tray 메뉴로 녹음을 시작하려면 main이 위젯에 지시해야 한다 (`getUserMedia`는 renderer에만 있다).
-  이 방향의 push 채널이 `recording:command`(`{ kind: 'start' | 'stop' | 'toggle' }`)다. 위젯이 그래프를 만든 뒤 평소처럼 `recording:start`를 invoke한다.
+- 전역 단축키·Tray 메뉴로 녹음을 시작하려면 main이 호스트 창에 지시해야 한다 (`getUserMedia`는 renderer에만 있다).
+  이 방향의 push 채널이 `recording:command`(`{ kind: 'start' | 'stop' | 'toggle' }`)다. 호스트가 그래프를 만든 뒤 평소처럼 `recording:start`를 invoke한다.
   main → renderer → main으로 한 바퀴 도는 모양이지만, 마이크 접근이 renderer 전용이라 피할 수 없다.
 - **메인 창의 시작·정지 버튼도 같은 경로를 탄다.** 메인 창은 `recording:control`(invoke)로 main에 요청하고,
-  main이 위젯에 `recording:command`를 push한다. 메인 창이 `recording:start`를 직접 부르면 그래프 없는 녹음이 시작돼
+  main이 호스트 창에 `recording:command`를 push한다. 메인 창이 `recording:start`를 직접 부르면 그래프 없는 녹음이 시작돼
   빈 WAV가 남는다.
-- **위젯 창은 `widget.enabled`와 무관하게 항상 만든다.** 이 창이 오디오 그래프의 소유자라, 창이 없으면 전역 단축키로도
-  녹음할 수 없다. 설정은 **보이는지 여부만** 정한다 (숨은 창이 그래프를 들고 있어도 되는 이유가 `backgroundThrottling: false`다).
-- **참석자 수 보관값은 정지 후에도 남는다.** 다음 녹음이 같은 값으로 시작하지만 두 창의 입력란에 계속 보이므로 숨은 상태가 아니다.
-  세션마다 지우면 위젯에서 시작 → 메인 창에서 입력하는 흐름이 매번 초기화된다.
+- **호스트 창은 항상 만든다.** 이 창이 오디오 그래프의 소유자라, 창이 없으면 어느 경로로도 녹음할 수 없다
+  (숨은 창이 그래프를 들고 있어도 되는 이유가 `backgroundThrottling: false`다).
+- **참석자 수 보관값은 정지 후에도 남는다.** 다음 녹음이 같은 값으로 시작하지만 메인 창 입력란에 계속 보이므로 숨은 상태가 아니다.
+  세션마다 지우면 단축키로 시작 → 메인 창에서 입력하는 흐름이 매번 초기화된다.
 
 ### 일시정지·재개 (2026-09-26)
 
 사용자 요청으로 녹음을 멈췄다가 같은 회의로 이어 녹음할 수 있게 한다. 쉬는 시간·잡담처럼 회의록에 남기지 않을 구간을 빼는 용도다.
 
-- **일시정지는 main 세션이 청크를 버리는 것으로 구현한다.** 위젯의 오디오 그래프는 그대로 돌고 청크도 계속 오지만,
-  세션이 일시정지 상태면 WAV에 쓰지 않는다. 위젯에 새 명령(`recording:command`)을 보내지 않으므로 main → 위젯 → main 왕복이 없고,
+- **일시정지는 main 세션이 청크를 버리는 것으로 구현한다.** 호스트 창의 오디오 그래프는 그대로 돌고 청크도 계속 오지만,
+  세션이 일시정지 상태면 WAV에 쓰지 않는다. 호스트에 새 명령(`recording:command`)을 보내지 않으므로 main → 호스트 → main 왕복이 없고,
   상태의 단일 출처가 여전히 세션 하나다. 마이크 사용 표시는 계속 켜져 있다 — 재개할 때 그래프를 다시 만들며 생기는 지연·권한 재확인을 피하는 값이다.
 - 일시정지 중에는 시스템 오디오 버퍼도 같은 길이만큼 **꺼내서 버린다**(`take`). 버리지 않으면 재개 직후 멈춰 있던 동안의 상대방 소리가 섞여 들어간다.
   라이브 받아쓰기에는 넣지 않고, 레벨은 0으로 보낸다.
@@ -623,8 +618,8 @@ export interface RecordingStateEvent {
 - 경과 시간: 세션은 `pausedAt`을 들고, 재개할 때 `startedAt`을 멈춰 있던 시간만큼 뒤로 민다. 그래서 받는 쪽 계산식은
   `(pausedAt ?? Date.now()) - startedAt` 하나이고 누적 일시정지 시간을 따로 보내지 않는다. 회의 행의 `created_at`은 실제 시작 시각 그대로다.
 - 요청은 `recording:setPaused`(`{ isPaused }`, 응답은 바뀐 녹음 상태) 하나다. 녹음 중이 아니면 오류, 이미 같은 상태면 그대로 돌려준다. 정지는 일시정지 중에도 할 수 있다.
-- UI: 메인 창 녹음 화면과 위젯 패널의 정지 버튼 **왼쪽**에 **아이콘만 있는 원형 버튼**(`pause` ↔ `play`, `aria-label`로 "일시정지"/"재개")을 둔다.
-  `Button` primitive의 `secondary`를 쓰고 지름은 옆 정지 버튼 높이와 같게 한다(녹음 화면 52px, 위젯 44px) — 따로 그린 버튼은 디자인 시스템과 어긋난다.
+- UI: 메인 창 녹음 화면의 정지 버튼 **왼쪽**에 **아이콘만 있는 원형 버튼**(`pause` ↔ `play`, `aria-label`로 "일시정지"/"재개")을 둔다.
+  `Button` primitive의 `secondary`를 쓰고 지름은 옆 정지 버튼 높이와 같게 한다(녹음 화면 52px) — 따로 그린 버튼은 디자인 시스템과 어긋난다.
   상태 문구는 "일시정지됨"으로 바꾸고, 메뉴바 제목은 `‖ 12:34`로 멈춘 시간을 보여 준다. 트레이 메뉴·전역 단축키에는 추가하지 않는다.
 
 ### 메뉴바 (Tray)
@@ -634,19 +629,19 @@ export interface RecordingStateEvent {
   PNG·icns는 손으로 고치지 않고 SVG에서 다시 렌더링한다 (`rsvg-convert` + `iconutil`).
 - 녹음 중에는 `tray.setTitle('● 12:34')`로 경과 시간을 1초마다 갱신하고, 녹음 중이 아니면 제목을 비워 아이콘만 남긴다.
   타이머는 **녹음 중에만** 돌리고 정지 시 `clearInterval`한다.
-- 트레이 메뉴: 녹음 시작/정지 · 위젯 표시/숨김 · 메인 창 열기 · 종료.
+- 트레이 메뉴: 녹음 시작/정지 · 메인 창 열기 · 종료.
 
 ### 전역 단축키
 
-- 기본값은 `⌥⌘R` 녹음 토글, `⌥⌘W` 위젯 표시/숨김. `app.whenReady` 이후 등록하고 `will-quit`에서 `unregisterAll`한다.
+- 기본값은 `⌥⌘R` 녹음 토글 하나(위젯 표시/숨김 `⌥⌘W`는 패널과 함께 제거). `app.whenReady` 이후 등록하고 `will-quit`에서 `unregisterAll`한다.
 - **앱 시작 시 등록 실패(다른 앱이 선점)는 앱을 멈추지 않는다.** `globalShortcut.register`의 반환값이 거짓이면 경고 로그만 남기고 진행한다.
-  단축키가 없어도 패널과 트레이로 모든 동작을 할 수 있다.
+  단축키가 없어도 메인 창과 트레이로 모든 동작을 할 수 있다.
 - **설정 화면에서 바꿀 수 있다** (2026-09-24 사용자 요청으로 "고정값" 결정을 뒤집음). 값은 Electron accelerator 문자열로
-  `shortcut.recording` / `shortcut.widget`에 저장한다.
+  `shortcut.recording`에 저장한다.
   - 허용 형식은 `src/shared/shortcut.ts`의 `isValidAccelerator` 하나가 정한다: 수식키 `Control`·`Alt`·`Shift`·`Command` 중
     `Control`·`Alt`·`Command`가 **하나 이상**(Shift만으로는 일반 타이핑과 겹친다) + 키 하나(`A`~`Z`, `0`~`9`, `F1`~`F12`, `Space`, 방향키).
     renderer의 키 입력 변환(`KeyboardEvent.code` 기준 — `key`는 ⌥ 조합에서 특수문자가 된다)과 main의 검증이 같은 함수를 쓴다.
-  - 저장 순서: 검증 → 두 단축키가 같으면 거절 → **등록을 먼저 시도하고 실패하면 이전 단축키로 되돌린 뒤 한국어 오류를 throw** → 성공했을 때만 DB에 쓴다.
+  - 저장 순서: 검증 → **등록을 먼저 시도하고 실패하면 이전 단축키로 되돌린 뒤 한국어 오류를 throw** → 성공했을 때만 DB에 쓴다.
     앱 시작과 달리 설정 변경에서는 실패를 삼키지 않는다 — 사용자가 방금 고른 키가 동작하지 않는 걸 모르면 안 된다.
   - **입력받는 동안은 전역 단축키를 해제한다** (`shortcuts:setSuspended`). 해제하지 않으면 현재 단축키를 누르는 순간 녹음이 시작된다.
     입력이 끝나거나(확정·Esc·포커스 이탈) 설정 화면이 언마운트되면 복구한다.
@@ -654,12 +649,8 @@ export interface RecordingStateEvent {
 
 ### 설정
 
-`AppSettings`에 `isWidgetEnabled`(DB 키 `widget.enabled`, **기본 켜짐**)를 추가한다. 끄면 앱 시작 시 패널을 띄우지 않고
-`⌥⌘W`로도 열리지 않는다. 트레이와 단축키는 패널과 독립적으로 동작한다 — 패널을 껐다고 녹음 토글까지 사라지면 안 된다.
-
-같은 설정 화면에 위젯 반투명(`isWidgetFadeEnabled`, 기본 켜짐)·비활성 불투명도(`widgetFadeOpacity`, 슬라이더)와
-두 전역 단축키(`recordingShortcut`, `widgetShortcut`)를 둔다. 불투명도는 저장 즉시 `windows/widget.ts`의 `applyWidgetOpacity`로 반영하고,
-단축키는 위 "전역 단축키" 절의 저장 순서를 따른다.
+위젯 패널을 없애면서(위 "플로팅 위젯 패널 제거" 절) 위젯 관련 설정(`isWidgetEnabled`·`isWidgetFadeEnabled`·`widgetFadeOpacity`·`widgetShortcut`)도 없앴다.
+전역 단축키는 `recordingShortcut` 하나이고, 위 "전역 단축키" 절의 저장 순서를 따른다.
 
 설정 화면은 **카테고리별로 묶는다** (2026-09-24 사용자 요청). 항목이 늘어 한 줄 나열로는 찾기 어려워졌기 때문이다.
 페이지 제목(`h1` "설정")은 `pages/Settings`가 갖고, 각 카테고리는 `h2` 제목을 가진 `section`이다.
@@ -668,15 +659,14 @@ export interface RecordingStateEvent {
 | --- | --- | --- | --- |
 | 1 | 마이크 | 입력 장치(`inputDevice`), 마이크 테스트 (2026-09-25, 위 "마이크 입력 장치와 테스트" 절) | `SettingsSection` |
 | 2 | 녹음·처리 | 원본 녹음 파일 보관(`isAudioKept`), 조용히 처리(`isQuietProcessing`) | `SettingsSection` |
-| 3 | 녹음 위젯 | 위젯 패널(`isWidgetEnabled`), 위젯 반투명(`isWidgetFadeEnabled`), 비활성 불투명도(`widgetFadeOpacity`) | `SettingsSection` |
-| 4 | 단축키 | 녹음 시작·정지(`recordingShortcut`), 위젯 표시·숨김(`widgetShortcut`) | `SettingsSection` |
-| 5 | 음성 인식 모델 | 음성 인식 모델 변경 | `ModelDownloadSection` (온보딩과 공유) |
-| 6 | 요약 · 용어 초안 | 실행 방식(로컬 / Claude API 키 / Claude Code / OpenAI API 키), 로컬을 골랐을 때만 **로컬 요약 모델 파일** 다운로드, API 키(공급자별), GPT 모델 선택, CLI 상태, 연결 확인 | `setting/LlmSection` — 파일 다운로드 행 `model/SummaryModelSection`은 페이지가 `localModelSlot`으로 끼운다 (아래 "LLM 공급자" 절). 2026-09-24까지는 "모델" 카테고리에 음성 인식 모델과 나란히 있었는데, 로컬 실행 방식의 부속품이 별개 설정처럼 보여 옮겼다 |
-| 7 | 용어 사전 | 팀 소개, 초안 만들기, 용어 목록 (Phase 5-4) | `setting/GlossarySection` (자기 채널로 따로 읽고 쓰므로 `SettingsSection`의 한 번 로드와 무관하다. 모델 위젯과 같이 `children`으로 끼운다) |
-| 8 | 업데이트 | 업데이트 확인(`isUpdateCheckEnabled`), 지금 확인(`UpdateCheck`) | `SettingsSection` |
-| 9 | 언어 | UI 언어(`locale`, 한국어 / 영어, 2026-09-25, 위 "UI 언어" 절) | `SettingsSection` |
+| 3 | 단축키 | 녹음 시작·정지(`recordingShortcut`) | `SettingsSection` |
+| 4 | 음성 인식 모델 | 음성 인식 모델 변경 | `ModelDownloadSection` (온보딩과 공유) |
+| 5 | 요약 · 용어 초안 | 실행 방식(로컬 / Claude API 키 / Claude Code / OpenAI API 키), 로컬을 골랐을 때만 **로컬 요약 모델 파일** 다운로드, API 키(공급자별), GPT 모델 선택, CLI 상태, 연결 확인 | `setting/LlmSection` — 파일 다운로드 행 `model/SummaryModelSection`은 페이지가 `localModelSlot`으로 끼운다 (아래 "LLM 공급자" 절). 2026-09-24까지는 "모델" 카테고리에 음성 인식 모델과 나란히 있었는데, 로컬 실행 방식의 부속품이 별개 설정처럼 보여 옮겼다 |
+| 6 | 용어 사전 | 팀 소개, 초안 만들기, 용어 목록 (Phase 5-4) | `setting/GlossarySection` (자기 채널로 따로 읽고 쓰므로 `SettingsSection`의 한 번 로드와 무관하다. 모델 위젯과 같이 `children`으로 끼운다) |
+| 7 | 업데이트 | 업데이트 확인(`isUpdateCheckEnabled`), 지금 확인(`UpdateCheck`) | `SettingsSection` |
+| 8 | 언어 | UI 언어(`locale`, 한국어 / 영어, 2026-09-25, 위 "UI 언어" 절) | `SettingsSection` |
 
-- 설정값 로드는 한 번만 한다. 그래서 `SettingsSection`이 1~4와 8·9를 모두 그리고, 5~7은 `children`으로 받아 4와 8 사이에 끼운다.
+- 설정값 로드는 한 번만 한다. 그래서 `SettingsSection`이 1~3과 7·8을 모두 그리고, 4~6은 `children`으로 받아 3과 7 사이에 끼운다.
   페이지는 `<SettingsSection><SettingGroup title="음성 인식 모델"><ModelDownloadSection /></SettingGroup><LlmSection localModelSlot={<SummaryModelSection />} /><GlossarySection /></SettingsSection>` 형태로 배치만 한다.
   widgets는 widgets를 import하지 않으므로(`.claude/rules/component-abstract-pattern.md`) `SummaryModelSection`은 페이지가 슬롯으로 넘긴다.
 - **오른쪽에 목차(TOC)를 둔다** (2026-09-24 사용자 요청). 카테고리가 7개(지금은 8개)로 늘어 스크롤로 찾기 어려워졌기 때문이다.
@@ -760,7 +750,6 @@ export interface LiveTranscriptState {
 - 아래에 "미리보기입니다. 회의록은 녹음을 마친 뒤 더 정확하게 다시 만듭니다" 한 줄을 둔다.
 - 그 아래에 **자원 사용 안내**를 한 줄 더 둔다 (2026-09-26 사용자 요청): "말하는 동안 GPU를 계속 써서 발열과 배터리 소모가 늘 수 있습니다. 필요 없을 때는 파형으로 바꿔 두세요".
   말하는 동안 인식이 쉬지 않고 이어져 GPU를 70~100% 쓰고, 한 번에 메모리 약 0.9GB를 잡기 때문이다. 인식 실패 안내가 떠 있어도 이 줄은 남긴다.
-- 위젯 패널은 바꾸지 않는다 (좁은 창이고 파형도 없다).
 
 ## 시스템 오디오 캡처 (Phase 5-2, 2026-09-26)
 
@@ -817,7 +806,7 @@ export interface LiveTranscriptState {
 ### 화면
 
 - `RecorderSection` 오른쪽 옵션 패널 "녹음 설정" 그룹의 참석자 수 행 아래에 같은 모양의 행 하나: 제목 "온라인 회의 소리 함께 녹음", 설명 "Zoom·Meet 상대방 목소리도 회의록에 넣습니다. 이어폰을 쓰면 더 정확합니다. 시작 전에 켜 두세요", 오른쪽에 `Switch`.
-  녹음 중에는 **비활성**(숨기지 않는다)이고, `systemAudio.errorMessage`가 있으면 설명 자리에 빨간 문구로 바꾼다(설명 높이는 세 줄로 고정, "화면별 구성" > 녹음). 위젯 패널은 바꾸지 않는다.
+  녹음 중에는 **비활성**(숨기지 않는다)이고, `systemAudio.errorMessage`가 있으면 설명 자리에 빨간 문구로 바꾼다(설명 높이는 세 줄로 고정, "화면별 구성" > 녹음).
 - 녹음 중 상태 표시 옆에 켜져 있음을 알리는 짧은 배지("상대방 소리 포함")를 둔다 — 회의 중 "지금 저쪽 소리도 잡히고 있나"를 한눈에 알기 위해서다.
 
 ## UI 언어 (2026-09-25)
@@ -831,7 +820,7 @@ export interface LiveTranscriptState {
 - 문구는 **`src/shared/locales/<domain>.ts`** 에 도메인별로 둔다. 한 파일이 `ko`와 `en`을 **나란히** export하고, `ko`가 타입을 정의하며 `en`은 `typeof ko`로 묶인다.
   한쪽 언어에만 키를 추가하면 타입 오류가 난다 — 번역 누락을 컴파일로 잡는다. 두 언어를 한 파일에 두는 이유는 문구를 고칠 때 대응하는 번역이 바로 옆에 보여야 하기 때문이다.
 - 값이 들어가는 문구는 문자열 템플릿이 아니라 **함수**다 (`deletedCount: ({ count }) => `${count}개 삭제됨``). 어순이 언어마다 달라 `{count}` 치환 규약을 따로 만들지 않는다.
-- 도메인 파일: `common`(버튼·공통 오류), `sidebar`(회의 목록·검색·날짜 묶음), `transcript`(회의록·화자·하단 녹음 바), `summary`, `refine`, `pipeline`(단계 라벨), `recording`(녹음 화면·위젯 패널), `models`(온보딩·모델 다운로드), `settings`(설정 카테고리·토글·단축키), `llm`, `glossary`, `update`, `main`(메뉴바·main 프로세스 오류).
+- 도메인 파일: `common`(버튼·공통 오류), `sidebar`(회의 목록·검색·날짜 묶음), `transcript`(회의록·화자·하단 녹음 바), `summary`, `refine`, `pipeline`(단계 라벨), `recording`(녹음 화면), `models`(온보딩·모델 다운로드), `settings`(설정 카테고리·토글·단축키), `llm`, `glossary`, `update`, `main`(메뉴바·main 프로세스 오류).
   `src/shared/i18n.ts`가 이들을 `MESSAGES: Record<Locale, Messages>`로 모으고 `Locale`(`'ko' | 'en'`)·`DEFAULT_LOCALE`·`isLocale`을 정의한다.
 - 사전 파일은 데이터라 **400줄 제한의 예외**다. 대신 도메인이 커지면 파일을 나눈다.
 - i18n 라이브러리(i18next 등)는 도입하지 않는다 — 두 언어·수백 문구에 키 문자열 조회·복수형 규칙·지연 로드가 필요 없고, 타입으로 누락을 잡는 쪽이 낫다.
@@ -841,7 +830,7 @@ export interface LiveTranscriptState {
 - 전역 컨텍스트 `shared/provider/context/localeContext`(`.claude/rules/project-structure.md` "Context / Provider / Routes")가 `LocaleProvider`·`useLocale`을 한 파일에 둔다.
   `useLocale()`은 `{ locale, t }`를 돌려주고 `t`는 그 언어의 `Messages`다. 컴포넌트는 `t.settings.title`처럼 읽는다.
 - 컨텍스트 기본값은 한국어 사전이다. 그래서 통합 테스트는 Provider 없이도 한국어 문구를 그대로 검증한다.
-- Provider는 마운트 시 `settings:get`으로 언어를 읽고, 이후에는 push 채널 **`settings:changed`** 를 구독한다. 위젯 창은 메인 창과 다른 창이라 설정 화면이 바꾼 값을 push로만 알 수 있다.
+- Provider는 마운트 시 `settings:get`으로 언어를 읽고, 이후에는 push 채널 **`settings:changed`** 를 구독한다. 녹음 호스트 창은 메인 창과 다른 창이라 설정 화면이 바꾼 값을 push로만 알 수 있다(오류 문구 언어).
   Provider는 `document.documentElement.lang`도 함께 맞춘다 (`index.html`의 기본은 `ko`).
 - 날짜·경과 시간 포맷터(`shared/utils/formatMeetingDate`, `meetingDateGroup`, `formatDuration`)는 `locale`을 인자로 받는다. "오늘"·"어제" 같은 묶음 라벨은 사전에서 읽는다.
 
@@ -858,84 +847,68 @@ export interface LiveTranscriptState {
 - `apps/web` 브라우저 프로토타입은 한국어만 유지한다.
 - macOS 시스템 대화상자 문구(`NSMicrophoneUsageDescription`)는 `electron-builder.yml`의 한국어 하나다. 영어 `InfoPlist.strings`는 후속 과제다.
 
-## 화면 디자인 (UI 리디자인, 2026-09-24)
+## 화면 디자인 (knot 리디자인, 2026-09-28)
 
-사용자와 Design 캔버스 시안("여백")으로 확정했다. 시안은 참고 자료이고, 값·구조의 근거는 이 절이다.
+2026-09-28 사용자 요청으로 Figma `knot` 파일의 "UI/UX Policy Guidelines" 페이지(knot v2 정책 보드)를 근거로 다시 그렸다.
+2026-09-24 "여백" 시안(흰 바탕·인디고 강조·사이드바 두 칸)을 대체한다. 시안은 참고 자료이고, 값·구조의 근거는 이 절이다.
+사용자 결정: **비주얼 + 레이아웃**을 가져오고(화면 흐름 전체는 아님), **다크 모드는 없앤다**.
+knot의 계정·워크스페이스·팀원 초대·문서 확인·AI 탐색은 서버·계정이 필요해 가져오지 않는다 (SKILL.md 4절 "범위 절제").
 
 ### 디자인 토큰 (`packages/design/src/base.css`)
 
-색·간격·반경·글꼴은 `:root` CSS 변수로만 쓴다 (`.claude/rules/general-code-convention.md`). 기존 변수 이름은 유지하고 값만 바꾸며, 모자란 것만 추가한다.
+색·간격·반경·그림자·글꼴은 `:root` CSS 변수로만 쓴다 (`.claude/rules/general-code-convention.md`). 기존 변수 이름은 유지하고 값만 바꾸며, 모자란 것만 추가한다.
 
-**토큰과 글꼴은 `@meeting-stt/design` 패키지가 단일 정의다** (2026-09-24, `references/monorepo.md` "디자인 패키지"). 브라우저 프로토타입(`apps/web`)도 같은 토큰·글꼴을 import한다.
-데스크탑 전용 레이아웃 치수(`--sidebar-width` 272px, `--topbar-height` 52px, `--rail-width` 300px)는 `assets/layout.css`에 둔다. `--rail-width`는 기본값이고, 회의 상세에서 사용자가 끌어 바꾼 폭이 인라인 변수로 덮어쓴다 ("화면별 구성").
+**토큰과 글꼴은 `@meeting-stt/design` 패키지가 단일 정의다** (`references/monorepo.md` "디자인 패키지"). 브라우저 프로토타입(`apps/web`)도 같은 토큰·글꼴을 import한다.
+데스크탑 전용 레이아웃 치수(`--gnb-top` 24px, `--gnb-height` 44px, `--dock-zone` 108px, `--sidebar-width` 240px, `--rail-width` 300px)는 `assets/layout.css`에 둔다. `--rail-width`는 기본값이고, 회의 상세에서 사용자가 끌어 바꾼 폭이 인라인 변수로 덮어쓴다 ("화면별 구성").
+
+knot 변수 이름(`Neutral/50`~`900`, `Primary`, `Sub/Accent-500`, `Sub/Warning-600`)을 괄호에 적는다.
 
 | 변수 | 값 | 용도 |
 | --- | --- | --- |
-| `--color-bg` | `#FFFFFF` | 본문 바탕 |
-| `--color-sidebar` (추가) | `#F7F7F8` | 사이드바, 선택·hover 행, 스테퍼 버튼 |
-| `--color-surface` | `#FFFFFF` | 카드·입력 |
-| `--color-surface-hover` | `#F7F7F8` | hover |
-| `--color-border` | `#E7E7EA` | 선 |
-| `--color-border-strong` (추가) | `#DCDCE0` | 버튼·입력 테두리 |
-| `--color-divider` (추가) | `#EDEDF0` | 설정 행 구분선, 상단 바 밑줄 |
-| `--color-disabled` (추가) | `#D4D4D9` | 꺼진 스위치, 비활성 버튼, 레벨 미터 빈 칸 |
-| `--color-text` | `#111113` | 본문 글자, 주요 버튼 바탕 |
-| `--color-text-muted` | `#6B6B73` | 보조 글자 (흰 바탕 대비 5.3:1) |
-| `--color-text-inverse` (추가) | `#FFFFFF` | 주요·강조 버튼 글자. 기존 `--color-accent-text`는 같은 값으로 남긴다 |
-| `--color-accent` | `#4338CA` | 새 녹음·녹음 중 표시·포커스·편집 테두리 (흰 글자 대비 7.9:1) |
-| `--color-accent-soft` (추가) | `#E0E7FF` | 녹음 중 점 둘레 |
-| `--color-danger` | `#B4232A` | 오류 글자·회의 삭제. **빨강은 오류 전용**이고 녹음에 쓰지 않는다 |
-| `--color-danger-soft` (추가) | `#FDECEC` | 오류 배지·삭제 버튼 바탕 |
-| `--color-success` | `#15803D` | 완료 체크 |
-| `--color-speaker-1`~`8` (추가) | `#0F766E` `#C2410C` `#BE185D` `#854D0E` `#1D4ED8` `#7E22CE` `#4D7C0F` `#475569` | 화자 점·이름. 9번째 화자부터 1번부터 다시 돈다. 모두 흰 바탕 대비 4.5:1 이상이고 오류 빨강(`--color-danger`)과 겹치지 않는다 |
-| `--font-sans` (추가) | `'Google Sans', 'Pretendard', -apple-system, sans-serif` | 전체 |
-| `--font-mono` (추가) | `'Google Sans Code', 'Google Sans', monospace` + `font-variant-numeric: tabular-nums` | 타이머·타임스탬프·퍼센트·단축키 |
+| `--color-bg` | `#FAF9F7` (Neutral/50) | 창 바탕. 카드는 흰색으로 그 위에 뜬다 |
+| `--color-sidebar` | `#F4F2EE` (Neutral/100) | 옅은 면 — 선택·hover 행, 길이 칩, 스테퍼 버튼, 배지. 이름은 역사적이다 (사이드바 바탕이 아님) |
+| `--color-surface` | `#FFFFFF` (Neutral/0) | 카드·입력·GNB·목록 패널 |
+| `--color-surface-hover` | `#F4F2EE` (Neutral/100) | hover |
+| `--color-border` | `#E9E6E1` (Neutral/200) | 선, 보조 버튼 테두리 |
+| `--color-border-strong` | `#D8D4CD` (Neutral/300) | 입력 테두리, 파형 빈 칸 |
+| `--color-divider` | `#E9E6E1` (Neutral/200) | 행 구분선 |
+| `--color-disabled` | `#D8D4CD` (Neutral/300) | 꺼진 스위치, 비활성 버튼 |
+| `--color-text` | `#1F1E1C` (Neutral/900) | 제목·본문 |
+| `--color-text-secondary` (추가) | `#55524D` (Neutral/700) | 빈 상태 본문, 선택된 알약 탭 바탕 |
+| `--color-text-muted` | `#6B6862` (Neutral/600) | 보조 글자, 메타 (흰 바탕 대비 5.5:1) |
+| `--color-text-subtle` (추가) | `#8C8880` (Neutral/500) | 개수·캡션처럼 없어도 되는 글자만 (3.5:1 — 본문에 쓰지 않는다) |
+| `--color-text-inverse` | `#FFFFFF` | 주요 버튼·독 글자 |
+| `--color-primary` (추가) | `#3C3B39` (Primary) | 주요 버튼 바탕, 하단 독, 켜진 스위치 |
+| `--color-accent` | `#2E85A3` (Sub/Accent-500) | 포커스 외곽선, "복사했어요" 같은 완료 피드백, 검색 `mark` 둘레. **버튼 바탕에 쓰지 않는다** (knot에는 색 버튼이 없다) |
+| `--color-accent-text` | `#FFFFFF` | 강조 위 글자 |
+| `--color-accent-soft` | `#E3F0F4` | 검색 `mark` 바탕 |
+| `--color-recording` (추가) | `#BF3B2C` (Sub/Warning-600) | 녹음 중 점·문구 |
+| `--color-danger` | `#BF3B2C` (Sub/Warning-600) | 오류 글자·회의 삭제 |
+| `--color-danger-soft` | `#FBECE9` | 오류 배지·삭제 버튼 바탕 |
+| `--color-success` | `#2E85A3` | 완료 체크 (knot은 완료를 청록으로 알린다) |
+| `--color-success-soft` | `#E3F0F4` | 완료 표시 바탕 |
+| `--color-thumb` | `#FFFFFF` | 스위치 손잡이 |
+| `--color-disabled-text` | `#FFFFFF` | 비활성 버튼 글자 |
+| `--color-speaker-1`~`8` | 이전 값 그대로 | 화자 점·이름. 모두 `#FAF9F7` 바탕에서도 4.5:1 이상 |
+| `--shadow-1` (추가) | `0 1px 1px rgb(31 30 28 / 4%), 0 2px 6px -1px rgb(31 30 28 / 8%)` (Shadow01) | GNB 알약·원형 버튼 |
+| `--shadow-2` (추가) | `0 1px 2px rgb(31 30 28 / 4%), 0 6px 16px -4px rgb(31 30 28 / 8%)` (Shadow02) | 카드 |
+| `--shadow-3` (추가) | `0 2px 4px rgb(31 30 28 / 4%), 0 8px 24px rgb(31 30 28 / 7%)` (Shadow03) | 독·목록 패널·팝오버 |
+| `--font-sans` | `'Pretendard', -apple-system, sans-serif` | 전체. knot은 라틴도 Pretendard다 (Google Sans는 스택에서 뺀다) |
+| `--font-mono` | `'Google Sans Code', 'Pretendard', monospace` + `tabular-nums` | 타임스탬프·퍼센트·단축키. 큰 타이머는 knot처럼 `--font-sans` 굵게 + `tabular-nums` |
 
-| `--color-thumb` (추가, 2026-09-28) | `#FFFFFF` | 꺼진 스위치 손잡이. 켜진 손잡이는 `--color-text-inverse` |
-| `--color-disabled-text` (추가, 2026-09-28) | `#FFFFFF` | 비활성 버튼 글자 |
-| `--color-success-soft` (추가, 2026-09-28) | `#E7F4EC` | 완료 표시 바탕 (브라우저 프로토타입 처리 단계) |
-
-- 다크 모드는 아래 "다크 모드" 절을 따른다. 새 토큰을 추가하면 다크 값도 같은 커밋에 넣는다 — 반쪽짜리 다크 토큰은 새 화면을 다크에서 깨뜨린다.
-- 간격 4·8·12·16·24·32는 기존 `--space-1`~`6`을 그대로 쓴다. 반경은 `--radius-sm` 6 · `--radius-md` 10 · `--radius-lg` 12(추가) · `--radius-full`이다.
-  시안의 8px 반경은 토큰을 따로 두지 않고 `--radius-sm`으로 맞춘다 (2px 차이로 단계를 하나 늘릴 이유가 없다).
+- 글자 크기: `--font-xs` 12(Caption01) · `--font-sm` 14(Caption02) · `--font-base` 15 · `--font-md` 16(Body01·Label01, 본문 기본) · `--font-lg` 18(Body02) · `--font-xl` 22 · `--font-title` 28 · `--font-display` 40(Title01, 자간 −2%) · `--font-hero` 44 · `--font-timer` 72.
+- 간격 4·8·12·16·24·32는 `--space-1`~`6`을 그대로 쓰고 카드 사이 28은 `--space-7`(추가)로 둔다.
+- 반경: `--radius-xs` 4(길이 칩, 추가) · `--radius-sm` 8 · `--radius-md` 12(버튼 S) · `--radius-lg` 16(목록 행·녹음 바·안쪽 칸) · `--radius-xl` 24(카드, 추가) · `--radius-full`.
 - 포커스 표시는 모든 컨트롤이 `:focus-visible`에 `2px solid var(--color-accent)` 외곽선 + 2px 간격으로 통일한다.
 
-### 다크 모드 (2026-09-28)
+### 다크 모드 없음 (2026-09-28)
 
-2026-09-28 사용자 요청으로 Design 캔버스 "meeting-stt 다크 모드" 시안(다크 토큰·회의 상세·녹음 중)을 근거로 넣었다. 2026-09-24의 "다크 모드 보류"를 대체한다.
+같은 날 넣었던 다크 모드(`@media (prefers-color-scheme: dark)` 블록)와 테마 설정(`AppSettings.theme`, `src/shared/theme.ts`, 설정 "화면" 카테고리)을
+knot 리디자인과 함께 **제거했다** (사용자 결정 — knot 시안에 다크가 없고, 새 팔레트의 다크 값을 근거 없이 지어내지 않는다).
 
-- `base.css`의 `@media (prefers-color-scheme: dark)` 블록이 `:root` 변수 값만 바꾸고 `color-scheme: light dark`로 스크롤바·폼 컨트롤도 맞춘다.
-- **테마 설정** (2026-09-28 사용자 요청): 설정 "화면" 카테고리에서 `system`(시스템 설정 따르기, 기본) · `light` · `dark` 중 고른다 (`AppSettings.theme`, `src/shared/theme.ts`, DB 키 `ui.theme`).
-  main이 앱 시작 시 창을 만들기 **전에**, 그리고 `settings:update`에서 값이 바뀔 때 `nativeTheme.themeSource`에 그대로 넣는다.
-  그러면 Chromium이 모든 창의 `prefers-color-scheme`을 바꾸고 위젯 패널의 vibrancy 재질도 같은 외형을 따른다 — renderer는 테마를 따로 알 필요가 없고 `data-theme` 같은 속성도 두지 않는다.
-  `system`이면 macOS 외형이 바뀔 때 앱도 즉시 따라간다. 창 생성 전에 적용하므로 재시작해도 첫 화면부터 저장된 테마로 뜬다.
-- 변수 이름은 그대로, 값만 바꾼다. 컴포넌트 CSS는 토큰만 쓰므로 수정하지 않는다. 면은 잉크 계열 차가운 무채색으로 층을 쌓고(바탕 < 사이드바 < 카드 < hover), 강조 인디고는 밝혀 글자·버튼 모두 4.5:1을 넘긴다.
-  **강조·주요 버튼 글자는 `--color-text-inverse`가 어두운 잉크로 뒤집힌다.** 빨강은 여전히 오류 전용이다.
-- 위젯 패널은 `vibrancy: 'popover'`라 시스템 외형을 따라 재질이 바뀌고, 글자는 같은 토큰으로 따라간다.
-
-| 변수 | 다크 값 | 비고 |
-| --- | --- | --- |
-| `--color-bg` | `#121214` | 본문 바탕 |
-| `--color-sidebar` | `#18181B` | 사이드바 · 선택 행 |
-| `--color-surface` | `#1C1C20` | 카드 · 입력 (한 단 떠오름) |
-| `--color-surface-hover` | `#232328` | hover · 중립 배지 |
-| `--color-border` | `#2A2A30` | 카드 선 |
-| `--color-border-strong` | `#3A3A41` | 버튼 · 입력 테두리 |
-| `--color-divider` | `#222226` | 행 구분 · 상단 바 밑줄 |
-| `--color-disabled` | `#45454C` | 꺼진 스위치 · 빈 레벨 칸 |
-| `--color-text` | `#ECECEF` | 본문 · 주요 버튼 바탕 (15.9:1) |
-| `--color-text-muted` | `#9B9BA5` | 보조 글자 (6.8:1) |
-| `--color-text-inverse` | `#111113` | 주요·강조 버튼 글자, 켜진 스위치 손잡이 |
-| `--color-accent` | `#8B8FF7` | 새 녹음 · 포커스 · 녹음 표시 (6.6:1) |
-| `--color-accent-text` | `#111113` | 강조 위 글자 |
-| `--color-accent-soft` | `#26264A` | 녹음 점 둘레 · 검색 `mark` |
-| `--color-danger` | `#F47A74` | 오류 전용 (7.0:1) |
-| `--color-danger-soft` | `#3A1C1D` | 오류 배지 · 삭제 바탕 |
-| `--color-success` | `#4CC97A` | 완료 체크 (8.9:1) |
-| `--color-success-soft` | `#173323` | 완료 표시 바탕 (시안 밖, 같은 규칙으로 정함) |
-| `--color-thumb` | `#ECECEF` | 꺼진 스위치 손잡이 |
-| `--color-disabled-text` | `#8A8A93` | 비활성 버튼 글자 |
-| `--color-speaker-1`~`8` | `#2DC4B0` `#F08A4B` `#F06AA8` `#D2A23A` `#6AA3F8` `#B98AF5` `#8CC43A` `#98A3B3` | 라이트와 같은 색상환 순서, 명도만 올림. 모두 바탕·면 대비 5.9:1 이상 |
+- `base.css`는 `color-scheme: light`만 선언한다. 새 토큰에 다크 값을 두지 않는다.
+- main은 창을 만들기 전에 `nativeTheme.themeSource = 'light'`로 고정한다 — macOS가 다크여도 스크롤바·폼 컨트롤이 라이트로 그려진다.
+- DB에 남은 `ui.theme` 행은 읽지 않는다 (지우는 마이그레이션은 두지 않는다 — 해가 없고, 되살릴 때 사용자의 값이 남는다).
 
 ### 공통 컴포넌트 (`shared/components/primitives/ui`)
 
@@ -944,9 +917,9 @@ export interface LiveTranscriptState {
 
 | 컴포넌트 | 계약 |
 | --- | --- |
-| `Button` | `variant`: `accent`(강조 바탕 — 새 녹음·녹음 시작, 화면당 하나) · `primary`(잉크 바탕, **기본값** — 화면의 주 동작) · `secondary`(흰 바탕 + `--color-border-strong` 테두리) · `danger`(`--color-danger-soft` 바탕 + 빨간 글자 — 삭제 확인에만). `size`: `md`(기본) · `sm`(상단 바·행 안). 비활성은 `--color-disabled` 바탕. **녹음 정지에 `danger`를 쓰지 않는다** (빨강은 오류 전용) — 녹음 화면은 `primary`, 위젯은 `secondary` |
-| `Badge` | `tone`: `neutral`(회색 면) · `accent`(`--color-accent-soft` 바탕 + 강조 글자) · `success`(초록 글자) · `danger`(`--color-danger-soft` 바탕 + 빨간 글자). 바탕을 칠한 강한 배지는 두지 않는다 |
-| `Switch` | `<button role="switch" aria-checked>`. props `isChecked`, `onChange(next)`, `ariaLabel` 또는 `ariaLabelledBy`(설정 행 제목의 id), `disabled`. 켜짐은 잉크, 꺼짐은 `--color-disabled`. Space·Enter는 네이티브 버튼 동작으로 토글된다 |
+| `Button` | `variant`: `primary`(차콜 `--color-primary` 바탕 + 흰 글자, **기본값** — 화면의 주 동작) · `secondary`(흰 바탕 + `--color-border` 테두리 + 차콜 글자) · `danger`(`--color-danger-soft` 바탕 + 빨간 글자 — 삭제 확인에만). `size`: `md`(기본, 높이 40 · 반경 12 · 16px 굵게 — knot Button/CTA/S) · `sm`(높이 32 · 반경 8 · 14px — 행 안·헤더). 비활성은 `--color-disabled` 바탕. **`accent` 변형은 없앴다** (2026-09-28, knot에는 색 버튼이 없다 — 녹음 시작도 `primary`). **녹음 정지에 `danger`를 쓰지 않는다** — 녹음 화면은 `primary` |
+| `Badge` | `tone`: `neutral`(`--color-sidebar` 바탕 + 보조 글자, 반경 4 — knot Chip/Duration) · `accent`(`--color-accent-soft` 바탕 + 강조 글자) · `success`(청록 글자) · `danger`(`--color-danger-soft` 바탕 + 빨간 글자). 바탕을 칠한 강한 배지는 두지 않는다 |
+| `Switch` | `<button role="switch" aria-checked>`. props `isChecked`, `onChange(next)`, `ariaLabel` 또는 `ariaLabelledBy`(설정 행 제목의 id), `disabled`. 켜짐은 차콜(`--color-primary`), 꺼짐은 `--color-disabled`. Space·Enter는 네이티브 버튼 동작으로 토글된다 |
 | `Stepper` | 숫자 입력 + −/+ 버튼. **값은 문자열**(`value`, `onChange(text)`) — 입력 중 비어 있거나 잘못된 값을 부모가 그대로 들고 검증하기 때문이다 (`useSpeakerCount`). props `min`, `max`, `label`(입력 이름), `placeholder`, `isInvalid`. 동작: 빈 값(또는 정수가 아닌 값)에서 + 는 `min`, − 는 비활성. `min`에서 − 는 **값을 비운다**("모름"). `max`에서 + 는 비활성. 범위를 넘는 값에서 −/+ 는 범위 안으로 끌어온다 |
 | `LevelWaveform` | 이퀄라이저형 레벨 미터. `LevelMeter`(가로 막대)를 대체한다. props `level`(0~1, 현재 세기), `barCount`. **모든 막대가 현재 레벨에 함께 반응**한다 — 가운데가 높고 양끝이 낮은 종 모양 포락선에 막대별 고정 계수를 곱하고, 레벨에 비례한 진폭으로 막대마다 다른 주기의 CSS `transform` 흔들림을 준다(노래방 이퀄라이저 느낌, 2026-09-26 사용자 요청). 무음이면 점만 남는다. 처음 구현은 0.5초마다 오는 레벨을 왼쪽부터 칸에 쌓는 이력형이었는데 24초 동안 채워지는 모양이 진행 바로 읽혀 바꿨다. 이력·타이머·오디오 분석이 없고 새 레벨이 올 때만 리렌더하며 흔들림은 컴포지터 애니메이션이라 추가 비용이 없다. `prefers-reduced-motion`이면 흔들림을 끈다 |
 
@@ -954,7 +927,8 @@ export interface LiveTranscriptState {
 
 | 컴포넌트 | 계약 |
 | --- | --- |
-| `TopBar` | 본문 상단 52px 바. `title`(왼쪽 회색 글자) + `children`(오른쪽 동작). 바 전체가 창 끌기 영역이고 안의 컨트롤은 `no-drag` |
+| `Card` (추가) | knot 카드 — 흰 바탕, 반경 24, `--shadow-2`, 안쪽 여백 20. props `title`, `count`(제목 옆 회색 숫자, 선택), `action`(헤더 오른쪽, 선택), `children`. 헤더는 16px 굵게. 홈 카드와 회의 상세 레일 카드가 같은 모양을 쓴다 |
+| `PageColumn` (추가) | 가운데 정렬 본문 열. props `width`(`'narrow'` 720 · `'medium'` 880 · `'wide'` 1080, 기본 `wide`). 좌우 여백 32, 위는 GNB 아래(`--gnb-top` + `--gnb-height` + 24), 아래는 `--dock-zone` |
 | `SettingGroup` | 설정 카테고리 — 회색 소제목(`h2`) + 행 목록. `aria-labelledby`로 제목과 묶는다 |
 | `SettingRow` | 설정 한 행 — 왼쪽 제목·설명, 오른쪽 `control`, 아래 `children`(펼침 영역). 제목 id를 `titleId`로 받아 `Switch`의 `ariaLabelledBy`에 넘긴다. 행 사이는 `--color-divider` 선 |
 
@@ -968,26 +942,47 @@ export interface LiveTranscriptState {
   파일 내용과 글꼴 이름(name 테이블)은 건드리지 않으므로 OFL 조항과 무관하다. 출처: Google Sans·Google Sans Code는 `google/fonts` 저장소의 `ofl/`, Pretendard는 npm `pretendard@1.3.9`의 가변 woff2.
 - 오프라인 앱이라 Google Fonts CDN을 쓰지 않는다. CSP도 외부 글꼴 출처를 열지 않는다. 브라우저 프로토타입도 같은 동봉 파일을 정적 자산으로 배포한다 (CDN 없음).
 
-### 메인 창과 사이드바 레이아웃
+### 메인 창 레이아웃: 상단 GNB · 하단 독 · 회의 목록 패널 (knot, 2026-09-28)
 
-- 메인 창 기본 크기 **1280×800**, 최소 **1040×640**. 두 칸(사이드바 272px + 본문)이 최소 폭에서도 회의록 줄 길이를 지키는 크기다.
-- `titleBarStyle: 'hiddenInset'`으로 신호등을 사이드바 위에 겹친다. 사이드바 상단 52px과 본문 상단 바는 `-webkit-app-region: drag`,
-  그 안의 버튼·입력은 `no-drag`로 둔다 (`references/pitfalls.md`에 함정 추가).
-- 라우터: `RequireModels` 아래에 `AppShellLayout`(사이드바 + `<Outlet />`)을 두고 홈·녹음·상세·설정을 그 자식으로 옮긴다. 온보딩·위젯은 셸 밖이다.
-  `UpdateBanner`는 홈이 아니라 셸의 본문 위에 둔다 (어느 화면에서든 보이도록).
-- 사이드바(`meeting/MeetingSidebarSection`) 구성: 새 녹음 버튼(녹음 중이면 경과 시간과 함께 "녹음 중"으로 바뀌고 `/record`로 이동) → 검색 입력 →
-  회의 목록(오늘·이번 주·이전으로 묶음, 처리 중이면 `PipelineProgress`, 오류면 한 줄 안내) → 하단 설정 링크.
-  (시안 최종본에서 "이 기기에서만 처리" 표시를 뺐다. 온보딩이 같은 내용을 말한다.)
-  날짜 묶음 계산은 순수 함수로 두고 vitest로 검증한다.
-- **목록 갱신**: 사이드바는 화면을 옮겨도 언마운트되지 않으므로, 예전처럼 "홈에 들어올 때 다시 불러오기"로는 제목 변경·삭제·처리 완료가 반영되지 않는다.
+2026-09-24의 "사이드바 272px + 본문" 두 칸을 대체한다. 본문은 창 전체 폭을 쓰고 그 위에 세 가지가 떠 있다.
+
+- 메인 창 기본 크기 **1280×800**, 최소 **1040×640** (그대로). `titleBarStyle: 'hiddenInset'`으로 신호등이 창 왼쪽 위에 겹친다.
+- 라우터: `RequireModels` 아래 `AppShellLayout`이 GNB + 목록 패널 + `<Outlet />` + 독을 그린다. 홈·회의록 목록·녹음·상세·설정이 그 자식이다. 온보딩·녹음 호스트는 셸 밖이다.
+  `UpdateBanner`는 GNB 바로 아래, 본문 위에 둔다 (어느 화면에서든 보이도록).
+- **GNB** (`widgets/navigation/GnbSection`, knot GNB/Floating): 창 위 24px에 높이 44 한 줄. 줄 전체가 `-webkit-app-region: drag`이고 안의 버튼만 `no-drag`다.
+  - 왼쪽: **목록 버튼**(36×36 흰 원 + `--shadow-1`, 아이콘 `list`, `aria-label` "회의 목록 열기/닫기", `aria-expanded`). 신호등(약 70px)과 겹치지 않게 왼쪽 여백을 **88px**로 둔다 (knot은 24px — 웹 앱이라 신호등이 없다).
+  - 가운데: **알약 탭** — "홈"(`/`) · "회의록"(`/meetings`, 상세 화면에서도 이 탭이 선택). 흰 알약(테두리 `--color-border`, `--shadow-1`, 안쪽 6) 안에 높이 32 탭, 선택 탭은 `--color-text-secondary` 바탕 + 흰 글자. `<nav>` + `NavLink`.
+  - 오른쪽: **설정 버튼**(36×36 흰 원, 아이콘 `settings`, 설정 화면에서 선택 표시). knot의 아바타 자리다 — 계정이 없어 설정이 그 자리를 쓴다.
+- **회의 목록 패널** (`widgets/meeting/MeetingSidebarSection`, knot "사이드바 열림"): 목록 버튼으로 여닫는 흰 카드(폭 `--sidebar-width` 240, 반경 24, `--shadow-3`)가 GNB 아래 왼쪽(위 68 + 12, 왼쪽 24)에 뜬다.
+  내용은 이전 사이드바와 같다 — 검색 입력 → 회의 목록(오늘·이번 주·이전 묶음, 처리 중이면 `PipelineProgress`, 오류면 한 줄) — 새 녹음 버튼과 설정 링크는 독·GNB로 옮겨 뺀다.
+  **열리면 본문을 밀어낸다**: 셸이 본문 왼쪽 여백을 패널 폭 + 24만큼 늘린다(겹치지 않게 — 최소 창 1040에서 본문 720 열이 패널에 가려지지 않는다).
+  열림 상태는 창 단위 화면 선호라 `localStorage`에 둔다(`meetingSidebar.isOpen`, 기본 닫힘, 읽기·쓰기 실패 시 닫힘으로 동작). Esc로 닫는다. 목록 갱신 규칙(`meetings:changed`)은 아래 그대로다.
+- **하단 독** (`widgets/recording/DockSection`, knot Dock/Bar): 창 아래 24px 가운데에 높이 60 차콜 알약(`--color-primary`, `--shadow-3`). 독은 녹음만 맡는다.
+  - 대기: **마이크 버튼**(40×40, `aria-label` "새 녹음") → `/record`로 이동한다. knot처럼 바로 녹음을 시작하지 않는 이유: 녹음 화면에서 참석자 수·상대방 소리 포함·파일 가져오기를 먼저 고를 수 있어야 한다.
+  - 녹음 중·일시정지: **시간 칩**(`--color-text-secondary` 바탕 알약: 빨간 점(일시정지면 회색) + 경과 시간 + `›`, 누르면 `/record`) + 칩 안 오른쪽 **정지 버튼**(32×32 흰 원 + 차콜 사각형, `aria-label` "녹음 끝내기") → `controlRecordingApi({ kind: 'stop' })`.
+  - `/record`에서는 독을 숨긴다 — 녹음 화면에 같은 조작이 크게 있다 (knot "녹음 화면처럼 마이크를 숨기는 곳").
+- 본문 여백: 모든 페이지는 위를 `--gnb-top + --gnb-height`(68) 아래에서, 아래를 `--dock-zone`(108 = 독 60 + 위아래 24) 위에서 끝낸다. 높이를 채우는 화면(녹음·상세·설정)은 이 사이에서 스스로 스크롤한다.
+- `TopBar`(본문 상단 52px 바)는 없앤다. 화면 제목은 본문 안 큰 제목이 맡고, 창 끌기는 GNB 줄이 맡는다.
+- **목록 갱신**: 회의 목록 패널·홈·회의록 목록은 화면을 옮겨도 최신이어야 한다.
   main이 회의 목록에 영향을 주는 변경(녹음 시작·정지, 제목 변경, 삭제, 파이프라인 처리 시작·`done`·`error`) 뒤에 **`meetings:changed` push**를 보내고,
-  사이드바가 받으면 `meetings:list`(검색 중이면 `meetings:search`)를 다시 부른다. payload는 없다 — 목록 전체를 다시 읽어도 로컬 SQLite라 싸다.
-  녹음 정지·처리 시작을 넣은 이유: 정지 직후 행은 `recording`, 큐가 잡으면 `processing`으로 바뀌는데 이 둘을 놓치면 사이드바가 처리 중 진행률 대신 "녹음 중"을 계속 보여준다.
+  `useMeetings`가 받으면 `meetings:list`(패널 검색 중이면 `meetings:search`)를 다시 부른다. payload는 없다 — 목록 전체를 다시 읽어도 로컬 SQLite라 싸다.
+  녹음 정지·처리 시작을 넣은 이유: 정지 직후 행은 `recording`, 큐가 잡으면 `processing`으로 바뀌는데 이 둘을 놓치면 처리 중 진행률 대신 "녹음 중"을 계속 보여준다.
   main은 `src/main/meetingsChanged.ts`의 리스너 하나로 모으고(`notifyMeetingsChanged`), `index.ts`가 모든 창에 브로드캐스트한다 — 진행률 리스너와 같은 모양이다.
 
 ### 화면별 구성
 
-- **회의 상세**: 상단 바(제목만) + 전체 폭 헤더(제목·메타, 제목과 같은 줄 오른쪽에 복사·마크다운 복사·더보기) + 헤더 아래 두 칸 — 가운데 회의록, 오른쪽 레일 300px에 요약 카드·교정 결과·화자 목록 — + **하단 고정 녹음 바**(두 칸 아래 전체 폭, "녹음본 재생·내보내기·다시 인식" 절).
+- **홈** (knot "홈/기본", 2026-09-28): 가운데 1080 열. 인사 제목(`--font-display` 40 · 500 · 자간 −2%, 가운데 정렬, "오늘 회의를 기록해 볼까요") 아래 카드 2×2 그리드(간격 28).
+  왼쪽 칸은 남은 폭, 오른쪽 칸은 400px. 위 줄 카드 높이 312, 아래 줄 214 고정(knot 값).
+  - 왼쪽 위 **"최근 회의"** (knot Card/ConfirmRequests 자리): 제목 옆 전체 개수, 헤더 오른쪽 "전체 보기 ›"(`/meetings`). 최근 3개 행 — 제목(16 굵게) + 날짜 · 길이 칩, 오른쪽 "열기" 보조 버튼. 처리 중이면 메타 자리에 `PipelineProgress`, 오류면 빨간 한 줄. 없으면 빈 상태 문구.
+  - 오른쪽 위 **"이번 주"**: 이번 주(`meetingDateGroup`이 `today`·`thisWeek`) 회의 수와 총 녹음 시간을 큰 숫자 두 줄로. 회의 목록에서 파생하는 값이라 새 IPC가 없다.
+  - 왼쪽 아래 **"진행 중인 녹음"** (knot Card/RecordingList): 카드 안 한 칸(`--color-sidebar`, 반경 16)이 상태를 보여 준다 — 녹음 중(빨간 점 · 경과 시간, "녹음 화면으로") · 일시정지(회색 점) · 없음(빈 상태 "진행 중인 녹음이 없어요" + "아래 마이크로 녹음을 시작하면 여기에서 볼 수 있어요").
+    처리 중·실패 회의는 이 카드가 아니라 "최근 회의" 행이 보여 준다 (knot은 정리 중을 여기 두지만, 이 앱은 여러 회의가 큐에서 동시에 기다릴 수 있다).
+  - 오른쪽 아래 **"녹음 파일 가져오기"** (knot Card/InviteMember 자리): 아이콘 칸(40, 반경 14, `--color-border` 바탕) + `ImportAudioButton` 행(제목·설명·버튼). 행이 제목을 가져 카드 헤더는 두지 않는다.
+  - 카드는 각각 위젯이고(`meeting/RecentMeetingsCard`·`meeting/WeeklyStatsCard`·`recording/CurrentRecordingCard`·`meeting/ImportAudioCard`) 페이지는 배치만 한다. 데이터는 `useMeetings`·`useRecordingState`만 쓴다. 인사 제목은 사용자 이름이 없어 고정 문구다.
+- **회의록 목록** (`/meetings`, knot "문서 목록/기본", 2026-09-28): 가운데 880 열. 제목 "회의록"(28 굵게) + 설명 한 줄, 날짜 묶음(오늘·이번 주·이전)마다 소제목(16 굵게 + 회색 개수) 아래 흰 카드(반경 16, `--shadow-2`) 하나에 행을 구분선으로 쌓는다.
+  행: 왼쪽 제목(16 굵게) + 상태 줄(처리 중 진행률·오류일 때만), 오른쪽 날짜 · 길이 칩 · `›`. 행 전체가 상세로 가는 링크다. 빈 상태는 "아직 회의록이 없어요" + 독 안내.
+  회의 목록 패널과 같은 `useMeetings`·`groupMeetingsByDate`를 쓴다 (`widgets/meeting/MeetingListSection` — 2026-09-24에 없앤 이름을 이 화면으로 되살린다).
+- **회의 상세**: (2026-09-28부터 상단 바 없음 — GNB 아래 본문이 바로 시작하고, 카드·레일은 knot 카드 모양) 전체 폭 헤더(제목·메타, 제목과 같은 줄 오른쪽에 복사·마크다운 복사·더보기) + 헤더 아래 두 칸 — 가운데 회의록, 오른쪽 레일 300px에 요약 카드·교정 결과·화자 목록 — + **하단 고정 녹음 바**(두 칸 아래 전체 폭, "녹음본 재생·내보내기·다시 인식" 절).
   복사 버튼을 창 오른쪽 위가 아니라 제목 줄에 두고 레일을 헤더 아래에서 시작하게 한 이유(2026-09-28 사용자 요청): 복사 대상인 회의록 제목 옆에 있어야 무엇을 복사하는지 분명하고, 레일이 제목 옆까지 올라오면 제목 폭이 레일에 눌린다.
   화자 목록은 회의록과 **같은 `useMeeting` 상태**를 써야 하므로(훅 인스턴스마다 상태가 따로다) `TranscriptSection`이 레일까지 그리고,
   요약은 `aside` 슬롯으로 받는다: `<TranscriptSection meetingId aside={<SummarySection meetingId />} />`. 기존 `SpeakerBar`는 레일의 화자 목록으로 바뀐다.
@@ -997,17 +992,17 @@ export interface LiveTranscriptState {
   요약 카드의 헤더는 접기/펼치기 토글(`aria-expanded`)이다 — 기본은 펼침이고, 접으면 본문·버튼이 숨고 헤더만 남는다. 요약이 진행 중일 때 접으면 헤더 캡션에 진행률을 대신 보여 준다. 접힘 상태는 저장하지 않는다(회의를 옮기면 다시 펼침).
   공급자 라벨(무엇으로 요약하는지)은 헤더의 "요약" 제목 바로 아랫줄에 작은 글씨로 적고, "요약 복사" 버튼은 헤더 오른쪽에 둔다(2026-09-28 사용자 요청). 버튼 안에 버튼을 둘 수 없으므로 헤더는 접기 버튼(셰브런·제목·라벨, 남는 폭을 채움)과 복사 버튼을 형제로 나란히 둔다. 복사 버튼은 요약이 있고 진행 중이 아닐 때만 보이고, 접힌 채 진행 중이면 라벨 자리에 진행률이 나온다. 본문 아래 버튼 줄에는 만들기/다시 요약만 남는다.
   회의 삭제는 더보기 안으로 들어가지만 2단계 인라인 확인 규칙은 그대로다. 더보기는 창 오른쪽 위 상단 바가 아니라 복사 버튼 바로 오른쪽에 둔다(2026-09-28 사용자 요청) — 회의 단위 동작을 한 줄에 모아 찾기 쉽게 한다.
-  상단 바 제목은 회의 날짜 묶음("회의록 · 오늘")이다 — 사이드바와 같은 날짜 묶음 함수(`shared/utils/meetingDateGroup`)를 쓴다.
+  (2026-09-28) 상단 바가 없어져 날짜 묶음 제목("회의록 · 오늘")도 뺐다 — 헤더 메타 줄의 날짜가 같은 정보다.
   발화 행은 시각 열 · (화자 + 본문) · 복사 버튼 세 칸이고, 복사 버튼은 행에 마우스를 올리거나 포커스가 들어올 때만 보인다. 화자는 색 점 + 이름의 `<select>`로 바꾼다.
   화자 색은 화자 목록 순서대로 `--color-speaker-1`~`8`을 돌려 쓴다. 화자 목록의 "화자 합치기"는 합치기 모드를 켜고, 모드 안에서 행마다 "합치기" → 대상 선택의 기존 두 단계를 거친다.
-- **녹음**: 큰 타이머, 파형형 레벨 미터, 참석자 수 **스테퍼**(−/+와 숫자 입력, "모름"은 값을 비운다), 정지 버튼("녹음 정지하고 회의록 만들기").
-  스테퍼는 `shared/components/primitives/ui/Stepper`로 만들어 위젯과 함께 쓴다. 참석자 수 범위·검증은 지금처럼 `@meeting-stt/core/speakerCount`.
+- **녹음**: (2026-09-28 knot — 상단 바 없음, 녹음 중 문구·점은 `--color-recording` 빨강, 타이머는 `--font-sans` 굵게 + `tabular-nums`) 큰 타이머, 파형형 레벨 미터, 참석자 수 **스테퍼**(−/+와 숫자 입력, "모름"은 값을 비운다), 정지 버튼("녹음 정지하고 회의록 만들기").
+  스테퍼는 `shared/components/primitives/ui/Stepper`로 만든다. 참석자 수 범위·검증은 지금처럼 `@meeting-stt/core/speakerCount`.
   **2026-09-26 재배치**(사용자 요청: 녹음 직전 화면이 스크롤되고 상태가 바뀔 때마다 요소가 튄다). 두 원칙 — **페이지 스크롤 없음**(최소 창 높이 640에서 전부 들어간다)과
   **레이아웃 시프트 없음**(대기 ↔ 녹음 ↔ 일시정지, 파형 ↔ 라이브, 오류 표시 어느 전환에서도 요소가 움직이지 않는다) — 을 지키기 위해 구성을 다음처럼 고정한다.
   - **헤더**(왼쪽 정렬): 상태 점·문구, 녹음 중에 켜져 있으면 그 옆에 "상대방 소리 포함" 배지, 아래 큰 타이머(`--font-timer`). 왼쪽 정렬이라 배지가 붙거나 타이머가 `1:00:00`으로 길어져도 아무것도 밀리지 않는다.
   - 헤더 아래는 **두 칸**. 왼쪽 **무대**는 보기 카드 + 제어 행 + 안내 두 줄이다. 보기 카드는 헤더(파형 / 라이브 받아쓰기 토글)와 본문으로 나뉘고 **본문 크기는 남은 높이가 정한다** —
     파형은 본문 가운데에, 라이브 받아쓰기는 본문을 채우는 스크롤 영역(앱에서 유일하게 스크롤되는 곳)이라 보기를 바꿔도 카드 크기가 같다.
-    제어 행은 높이 52px 고정이고 **버튼이 무대 폭을 꽉 채운다** (2026-09-26 사용자 요청): 대기 중 강조색 "녹음 시작" 하나, 녹음 중 일시정지 원형 버튼 + 남은 폭을 채우는 "녹음 정지하고 회의록 만들기".
+    제어 행은 높이 52px 고정이고 **버튼이 무대 폭을 꽉 채운다** (2026-09-26 사용자 요청): 대기 중 주요(차콜) "녹음 시작" 하나, 녹음 중 일시정지 원형 버튼 + 남은 폭을 채우는 "녹음 정지하고 회의록 만들기".
     안내("창을 닫아도 계속", 단축키)는 두 줄 높이 고정. **명령·녹음 오류는 이 안내 자리에 대신** 빨간 글자로 쓴다 — 안내는 없어도 되는 정보라 오류가 있는 동안 잠시 비켜도 되고, 같은 높이라 별도 줄을 끼워 넣지 않는다.
   - 오른쪽 **옵션 패널**(340px, `aside`, 설정 화면과 같은 `SettingGroup`/`SettingRow`)이 사용자가 입력하는 것을 카테고리로 모은다.
     위 그룹 **"파일로 만들기"**: 녹음 파일 가져오기 행(녹음 중 **비활성**) — 2026-09-26 사용자 요청으로 맨 위에 둔다.
@@ -1015,13 +1010,12 @@ export interface LiveTranscriptState {
     설명이 길어질 수 있는 온라인 회의 소리 행(시스템 오디오 오류 문구)이 패널의 **마지막**이라, 넘치면 아래 빈 공간으로 흘러나갈 뿐 다른 행이 밀리지 않는다.
   - **고정 규칙**: 상태에 따라 요소를 숨기거나 끼워 넣지 않고 비활성으로 바꾼다. 문구가 바뀌는 자리(행 설명·오류·안내)는 줄 수를 정해 `height`를 고정하고, 넘치면 `overflow: visible`로 여백에 흘러나가게 둔다 —
     드물게 긴 오류가 여백을 침범하는 쪽이 매번 화면이 튀는 것보다 낫다. 폭 계산: 최소 창(1040)에서 본문 768 − 패딩 64 − 패널 340 − 칸 사이 32 = 무대 332px이고 일시정지(52) + 정지 버튼(약 270) 행이 들어간다.
-- **위젯**: 같은 스테퍼, 대기 중이면 강조색 "녹음 시작", 녹음 중이면 테두리형 "녹음 정지". 파형은 넣지 않는다 — 좁은 패널에서 타이머·녹음 점만으로 녹음 중임이 충분히 보인다 (2026-09-24 사용자 요청으로 제거).
-  창 크기는 **300×304**(이전 264×248) — 헤더·타이머·스테퍼·버튼·안내 한 줄이 잘리지 않는 높이다.
-  사이드바·위젯에는 단축키 안내를 넣지 않는다 — 두 곳 다 언마운트되지 않아 설정에서 단축키를 바꾸면 틀린 키를 보여준다 (설정 변경 push가 없다). 녹음 화면은 들어올 때마다 설정을 읽으므로 안내한다.
+- 위젯 패널은 2026-09-28 이 브랜치에서 제거했다 ("녹음 호스트 창 · 메뉴바 · 전역 단축키" 절).
+  목록 패널·독에는 단축키 안내를 넣지 않는다 — 모두 언마운트되지 않아 설정에서 단축키를 바꾸면 틀린 키를 보여준다 (설정 변경 push가 없다). 녹음 화면은 들어올 때마다 설정을 읽으므로 안내한다.
 - **설정**: 카테고리 제목 + 행(제목·설명 왼쪽, 컨트롤 오른쪽). 켜기/끄기는 `role="switch"` 버튼인 `primitives/ui/Switch`로 바꾼다. 용어 사전 카테고리도 같은 행 규칙을 따른다.
 - **온보딩**: 왼쪽 안내, 오른쪽 모델 선택 카드와 다운로드 목록("함께 받는 모델": 완료·퍼센트·대기)의 두 칸. 제목 문구는 "인터넷 사용, 비용, 시간 제한 없는 회의록"(시안).
   설정의 음성 인식 모델은 같은 `ModelDownloadSection`을 `variant="setting"`으로 그려 한 행(현재 모델 · 설치됨 + "모델 바꾸기")으로 접어 두고, 누르면 선택 카드가 펼쳐진다.
-- 제목은 굵은 산세리프(명조 없음). 아이콘은 인라인 stroke SVG이고 아이콘 전용 버튼에는 `aria-label`을 붙인다.
+- 제목은 굵은 산세리프(명조 없음). 아이콘은 인라인 stroke SVG(stroke 1.5, knot 아이콘과 같은 굵기)이고 아이콘 전용 버튼에는 `aria-label`을 붙인다. knot 전용 아이콘(Icon/Mic의 매듭 받침, Icon/RAG Explore)은 브랜드 글리프라 가져오지 않는다.
 
 ### 회의록 검색 (`meetings:search`)
 
@@ -1039,7 +1033,7 @@ export interface LiveTranscriptState {
 - **FTS5를 쓰지 않는 이유**: 기본 `unicode61` 토크나이저는 띄어쓰기로만 나눠 "회의록을"에서 "회의록"을 못 찾고,
   `trigram`은 3글자 미만 질의를 못 찾는다 (한국어 검색어는 2글자가 흔하다). 데이터가 한 사람의 로컬 회의라 전체 스캔으로 충분하다.
   느려지면(수천 회의) 그때 측정하고 바꾼다. 스키마 변경은 없다.
-- renderer: 입력 200ms 디바운스(`SEARCH_DEBOUNCE_MS`), 검색 중에는 사이드바 목록이 결과로 바뀌고 발화 조각의 일치 부분을 `<mark>`로 강조한다.
+- renderer: 입력 200ms 디바운스(`SEARCH_DEBOUNCE_MS`), 검색 중에는 회의 목록 패널의 목록이 결과로 바뀌고 발화 조각의 일치 부분을 `<mark>`로 강조한다.
   결과를 누르면 그 회의 상세로 간다. **해당 발화로 스크롤하는 것은 후속 과제**다. Esc·지우기 버튼으로 검색을 끝내면 원래 목록으로 돌아간다.
 
 ## 화면 라우트 (Phase 2)
@@ -1049,17 +1043,18 @@ export interface LiveTranscriptState {
 - `routes/paths.ts` : 경로 상수와 경로 조립 함수(`meetingDetailPath`). **컴포넌트는 여기만 import한다.**
 - `routes/index.tsx` : 페이지를 물린 라우터 정의. 페이지를 import하므로, 컴포넌트가 이 파일에서 경로 상수를 가져오면 `widget → routes → page → widget` 순환 import가 된다.
 
-리디자인(아래 "화면 디자인" 절)부터 홈·녹음·상세·설정은 **사이드바 레이아웃**(`shared/routes/layout.tsx`의 `AppShellLayout`) 안에 그려진다.
-회의 목록은 페이지가 아니라 사이드바(`meeting/MeetingSidebarSection`)가 들고, `MeetingListSection`은 없앤다.
+knot 리디자인(위 "화면 디자인" 절)부터 홈·회의록 목록·녹음·상세·설정은 **GNB·독 셸**(`shared/routes/layout.tsx`의 `AppShellLayout`) 안에 그려진다.
+회의 목록은 여닫는 패널(`meeting/MeetingSidebarSection`)과 `/meetings` 화면(`meeting/MeetingListSection`) 두 곳에 있다.
 
 | 경로 | 페이지 | 배치하는 widget |
 | --- | --- | --- |
-| `/` | `pages/Home` | 빈 상태 안내 ("회의를 고르거나 새로 녹음하세요") |
+| `/` | `pages/Home` | 인사 제목 + 카드 2×2: `meeting/RecentMeetingsCard` · `meeting/WeeklyStatsCard` · `recording/CurrentRecordingCard` · `meeting/ImportAudioCard` |
+| `/meetings` | `pages/Meetings` | `meeting/MeetingListSection` (날짜 묶음 카드 목록) |
 | `/record` | `pages/Record` | `recording/RecorderSection` |
 | `/meetings/:meetingId` | `pages/MeetingDetail` | `meeting/TranscriptSection` (오른쪽 레일에 `meeting/SummarySection`을 슬롯으로 받음) |
 | `/settings` | `pages/Settings` | `setting/SettingsSection` (카테고리 묶음, 모델·LLM·용어 사전 위젯을 `children`으로 받음), `model/ModelDownloadSection`, `setting/LlmSection` (`model/SummaryModelSection`을 슬롯으로 받음), `setting/GlossarySection`, 오른쪽 목차 `composites/PageToc` |
 | `/onboarding` | `pages/Onboarding` | `model/ModelDownloadSection` |
-| `/widget` | `pages/Widget` | `recording/WidgetPanelSection` (위젯 창 전용, 가드 밖) |
+| `/recorder` | `pages/RecorderHost` | `recording/RecorderHostSection` (녹음 호스트 창 전용, 그리는 것 없음, 가드 밖) |
 
 - `/settings`는 Phase 3에서 원본 WAV 보관 옵션과 함께 추가했다. Phase 4에서 업데이트 확인 옵션(`SettingsSection`),
   음성 인식 모델 변경(`ModelDownloadSection`, 온보딩과 같은 위젯), 요약 모델 다운로드(`SummaryModelSection`)를 붙였다.
@@ -1069,11 +1064,11 @@ export interface LiveTranscriptState {
   온보딩 페이지 자체는 가드 밖에 있고, 다운로드가 끝나면 홈으로 이동한다. 가드는 레이아웃이 처음 마운트될 때 한 번만 조회한다
   (모델은 온보딩 밖에서 사라지지 않는다).
 - `features/update/UpdateBanner`는 `update:available` 이벤트를 받았을 때만 나타난다 (`references/distribution.md` 7절). 리디자인부터 홈이 아니라 셸 본문 위에 둔다.
-- 흐름: 사이드바(리디자인 전에는 홈)에서 "새 녹음" → `/record`(또는 위젯·단축키) → 정지 → main이 잡을 큐에 넣고 `/meetings/:meetingId`로 이동 → 처리 중 상태를 보여주다가 `pipeline:progress`의 `done`을 받으면 회의록을 다시 불러온다.
-- **Phase 5-3부터 `/record`를 벗어나도 녹음은 계속된다.** 오디오 그래프가 위젯 창으로 옮겨 갔기 때문이다
+- 흐름: 하단 독의 마이크(리디자인 전에는 사이드바)에서 "새 녹음" → `/record`(또는 메뉴바·단축키) → 정지 → main이 잡을 큐에 넣고 `/meetings/:meetingId`로 이동 → 처리 중 상태를 보여주다가 `pipeline:progress`의 `done`을 받으면 회의록을 다시 불러온다.
+- **Phase 5-3부터 `/record`를 벗어나도 녹음은 계속된다.** 오디오 그래프가 녹음 호스트 창으로 옮겨 갔기 때문이다
   (그 전에는 `useRecorder`가 언마운트될 때 녹음을 정지했다). 대신 **앱이 종료될 때**(`before-quit`) 진행 중 녹음이 있으면
   WAV 헤더를 확정하고 잡을 큐에 넣는다. 헤더가 확정되지 않은 WAV는 파이프라인이 읽지 못한다.
-- 위젯에서 정지하면 메인 창을 앞으로 가져오고 그 회의의 상세로 이동한다 (`stoppedMeetingId`). 녹음을 끝낸 직후에 보고 싶은 것은 결과 화면이다.
+- 메뉴바·단축키로 정지하면 메인 창을 앞으로 가져오고 그 회의의 상세로 이동한다 (`stoppedMeetingId`). 녹음을 끝낸 직후에 보고 싶은 것은 결과 화면이다.
 - Phase 2에서 진행률 **막대**는 만들지 않았다. Phase 3에서 `modules/features/pipeline/PipelineProgress`로 추가했다 (위 "진행률 표시" 절).
 
 ## 편집 UI 규칙 (Phase 3)

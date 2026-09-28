@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type {
   AppSettings,
   GlossarySettings,
@@ -14,14 +15,8 @@ import {
   isLlmProvider,
   isOpenaiModelId
 } from '@shared/llm'
-import {
-  DEFAULT_RECORDING_SHORTCUT,
-  DEFAULT_WIDGET_SHORTCUT,
-  isValidAccelerator
-} from '@shared/shortcut'
-import { DEFAULT_WIDGET_FADE_OPACITY, isWidgetFadeOpacity } from '@shared/widget'
+import { DEFAULT_RECORDING_SHORTCUT, isValidAccelerator } from '@shared/shortcut'
 import { DEFAULT_LOCALE, isLocale } from '@shared/i18n'
-import { DEFAULT_THEME, isThemePreference } from '@shared/theme'
 import { getDb } from './connection'
 
 /** DB 키와 TS 필드명의 변환은 이 파일에서만 한다 (references/data-model.md) */
@@ -29,21 +24,16 @@ const AUDIO_KEEP_KEY = 'audio.keep'
 const AUDIO_INPUT_DEVICE_KEY = 'audio.inputDevice'
 const AUDIO_SYSTEM_CAPTURE_KEY = 'audio.systemCapture'
 const UI_LOCALE_KEY = 'ui.locale'
-const UI_THEME_KEY = 'ui.theme'
 const UPDATE_CHECK_KEY = 'update.check'
 const STT_MODEL_KEY = 'stt.model'
 const PIPELINE_QUIET_KEY = 'pipeline.quiet'
-const WIDGET_ENABLED_KEY = 'widget.enabled'
-const WIDGET_BOUNDS_KEY = 'widget.bounds'
-const WIDGET_FADE_KEY = 'widget.fade'
-const WIDGET_FADE_OPACITY_KEY = 'widget.fadeOpacity'
 const RECORDING_SHORTCUT_KEY = 'shortcut.recording'
-const WIDGET_SHORTCUT_KEY = 'shortcut.widget'
 const GLOSSARY_TEAM_KEY = 'glossary.team'
 const GLOSSARY_TERMS_KEY = 'glossary.terms'
 const REFINE_AUTO_EXTERNAL_KEY = 'refine.autoExternal'
 const LLM_PROVIDER_KEY = 'llm.provider'
 const LLM_OPENAI_MODEL_KEY = 'llm.openaiModel'
+const TELEMETRY_INSTALL_ID_KEY = 'telemetry.installId'
 /** 회사별 암호화 키의 settings 키. Anthropic은 OpenAI 추가 전 이름을 그대로 둬 저장된 키를 잃지 않는다 */
 const LLM_API_KEY_KEYS: Record<LlmApiVendor, string> = {
   anthropic: 'llm.claudeApiKey',
@@ -54,14 +44,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   isAudioKept: false,
   isUpdateCheckEnabled: false,
   isQuietProcessing: false,
-  isWidgetEnabled: true,
-  isWidgetFadeEnabled: true,
-  widgetFadeOpacity: DEFAULT_WIDGET_FADE_OPACITY,
   recordingShortcut: DEFAULT_RECORDING_SHORTCUT,
-  widgetShortcut: DEFAULT_WIDGET_SHORTCUT,
   inputDevice: null,
   locale: DEFAULT_LOCALE,
-  theme: DEFAULT_THEME,
   isAutoRefineExternal: false
 }
 
@@ -97,12 +82,6 @@ const readBoolean = ({ key, fallback }: { key: string; fallback: boolean }) => {
   return typeof value === 'boolean' ? value : fallback
 }
 
-const readOpacity = ({ key, fallback }: { key: string; fallback: number }) => {
-  const value = readValue(key)
-
-  return isWidgetFadeOpacity(value) ? value : fallback
-}
-
 const readShortcut = ({ key, fallback }: { key: string; fallback: string }) => {
   const value = readValue(key)
 
@@ -114,13 +93,6 @@ const readLocale = ({ key }: { key: string }) => {
   const value = readValue(key)
 
   return isLocale(value) ? value : DEFAULT_SETTINGS.locale
-}
-
-/** 모르는 테마 값은 시스템 설정 따르기로 읽는다 */
-const readTheme = ({ key }: { key: string }) => {
-  const value = readValue(key)
-
-  return isThemePreference(value) ? value : DEFAULT_SETTINGS.theme
 }
 
 /** 모양이 깨진 값은 시스템 기본 마이크(null)로 읽는다 */
@@ -140,29 +112,12 @@ export const getAppSettings = (): AppSettings => ({
     key: PIPELINE_QUIET_KEY,
     fallback: DEFAULT_SETTINGS.isQuietProcessing
   }),
-  isWidgetEnabled: readBoolean({
-    key: WIDGET_ENABLED_KEY,
-    fallback: DEFAULT_SETTINGS.isWidgetEnabled
-  }),
-  isWidgetFadeEnabled: readBoolean({
-    key: WIDGET_FADE_KEY,
-    fallback: DEFAULT_SETTINGS.isWidgetFadeEnabled
-  }),
-  widgetFadeOpacity: readOpacity({
-    key: WIDGET_FADE_OPACITY_KEY,
-    fallback: DEFAULT_SETTINGS.widgetFadeOpacity
-  }),
   recordingShortcut: readShortcut({
     key: RECORDING_SHORTCUT_KEY,
     fallback: DEFAULT_SETTINGS.recordingShortcut
   }),
-  widgetShortcut: readShortcut({
-    key: WIDGET_SHORTCUT_KEY,
-    fallback: DEFAULT_SETTINGS.widgetShortcut
-  }),
   inputDevice: readInputDevice({ key: AUDIO_INPUT_DEVICE_KEY }),
   locale: readLocale({ key: UI_LOCALE_KEY }),
-  theme: readTheme({ key: UI_THEME_KEY }),
   isAutoRefineExternal: readBoolean({
     key: REFINE_AUTO_EXTERNAL_KEY,
     fallback: DEFAULT_SETTINGS.isAutoRefineExternal
@@ -173,27 +128,17 @@ export const updateAppSettings = ({
   isAudioKept,
   isUpdateCheckEnabled,
   isQuietProcessing,
-  isWidgetEnabled,
-  isWidgetFadeEnabled,
-  widgetFadeOpacity,
   recordingShortcut,
-  widgetShortcut,
   inputDevice,
   locale,
-  theme,
   isAutoRefineExternal
 }: AppSettings) => {
   writeValue({ key: AUDIO_KEEP_KEY, value: isAudioKept })
   writeValue({ key: UPDATE_CHECK_KEY, value: isUpdateCheckEnabled })
   writeValue({ key: PIPELINE_QUIET_KEY, value: isQuietProcessing })
-  writeValue({ key: WIDGET_ENABLED_KEY, value: isWidgetEnabled })
-  writeValue({ key: WIDGET_FADE_KEY, value: isWidgetFadeEnabled })
-  writeValue({ key: WIDGET_FADE_OPACITY_KEY, value: widgetFadeOpacity })
   writeValue({ key: RECORDING_SHORTCUT_KEY, value: recordingShortcut })
-  writeValue({ key: WIDGET_SHORTCUT_KEY, value: widgetShortcut })
   writeValue({ key: AUDIO_INPUT_DEVICE_KEY, value: inputDevice })
   writeValue({ key: UI_LOCALE_KEY, value: locale })
-  writeValue({ key: UI_THEME_KEY, value: theme })
   writeValue({ key: REFINE_AUTO_EXTERNAL_KEY, value: isAutoRefineExternal })
 
   return getAppSettings()
@@ -221,24 +166,6 @@ export const getWhisperModelId = (): WhisperModelId => {
 
 export const setWhisperModelId = ({ whisperModelId }: { whisperModelId: WhisperModelId }) =>
   writeValue({ key: STT_MODEL_KEY, value: whisperModelId })
-
-/**
- * 사용자가 옮긴 위젯 패널 위치. `AppSettings`에 넣지 않는다 — 설정 화면에서 고르는 값이 아니라
- * 창을 옮길 때 main이 적어 두는 런타임 상태이고, 읽고 쓰는 쪽이 windows/widget.ts 하나뿐이다
- * (references/data-model.md).
- */
-export const getWidgetBounds = () => {
-  const value = readValue(WIDGET_BOUNDS_KEY)
-  if (!value || typeof value !== 'object') return undefined
-
-  const { x, y } = value as Record<string, unknown>
-  if (typeof x !== 'number' || typeof y !== 'number') return undefined
-
-  return { x, y }
-}
-
-export const setWidgetBounds = ({ x, y }: { x: number; y: number }) =>
-  writeValue({ key: WIDGET_BOUNDS_KEY, value: { x, y } })
 
 /**
  * 전역 용어 사전. `AppSettings`에 넣지 않는다 — 설정 화면의 별도 카테고리가 자기 채널로 읽고 쓴다
@@ -309,4 +236,18 @@ export const setEncryptedApiKey = ({ vendor, encrypted }: SetEncryptedApiKeyPara
   }
 
   writeValue({ key: LLM_API_KEY_KEYS[vendor], value: encrypted })
+}
+
+/**
+ * 설치 식별자 (references/telemetry.md "식별자"). 첫 호출에 UUID를 만들어 저장한다.
+ * 기기·계정 정보에서 파생하지 않는다. 새로 만들었으면 `isFirstRun`이 true다.
+ */
+export const ensureTelemetryInstallId = () => {
+  const saved = readValue(TELEMETRY_INSTALL_ID_KEY)
+  if (typeof saved === 'string' && saved) return { installId: saved, isFirstRun: false }
+
+  const installId = randomUUID()
+  writeValue({ key: TELEMETRY_INSTALL_ID_KEY, value: installId })
+
+  return { installId, isFirstRun: true }
 }

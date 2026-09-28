@@ -58,7 +58,7 @@ export default function RecordPanel({ isDisabled, onRecorded }: RecordPanelProps
             녹음 정지
           </Button>
         ) : (
-          <Button variant="accent" onClick={() => void start()} disabled={isBusy || isDisabled}>
+          <Button onClick={() => void start()} disabled={isBusy || isDisabled}>
             <Icon name="mic" />
             녹음 시작
           </Button>

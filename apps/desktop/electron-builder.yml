@@ -1,5 +1,7 @@
-appId: com.meetingstt.app
-productName: meeting-stt
+# 팀 테스트 빌드(test/usage-analytics)는 공개 빌드와 appId·productName을 가른다 → userData·회의 DB도 갈라진다
+# (.claude/skills/meeting-stt-dev/references/telemetry.md "빌드 분리")
+appId: com.meetingstt.team
+productName: meeting-stt-team
 directories:
   buildResources: build
 # 수집 기준은 이 앱 워크스페이스(apps/desktop) 디렉터리다. 루트의 docs/·plan.md·.github/·설정 파일은
@@ -40,10 +42,8 @@ mac:
   # (APPLE_ID·APPLE_APP_SPECIFIC_PASSWORD·APPLE_TEAM_ID 필요, references/distribution.md)
   notarize: false
 dmg:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: meeting-stt-team-${version}.${ext}
 npmRebuild: false
-# electron-updater가 이 저장소의 게시된 릴리스를 본다 (references/distribution.md 6절)
-publish:
-  provider: github
-  owner: geongyu09
-  repo: meeting-stt
+# 팀 테스트 빌드는 공개 릴리스 채널을 보지 않는다. 자동 업데이트 없이 팀 배포 채널로 나눠 준다
+# (references/telemetry.md "빌드 분리", src/main/updater.ts의 IS_TEAM_BUILD)
+publish: null

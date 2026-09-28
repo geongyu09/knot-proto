@@ -42,8 +42,8 @@ interface RecordingSession {
 }
 
 /**
- * 진행 중 녹음의 단일 출처. 오디오 그래프는 위젯 창 하나가 들고 있고, 상태는 여기에만 있다
- * (references/architecture.md의 "녹음 위젯 패널").
+ * 진행 중 녹음의 단일 출처. 오디오 그래프는 녹음 호스트 창 하나가 들고 있고, 상태는 여기에만 있다
+ * (references/architecture.md의 "녹음 호스트 창 · 메뉴바 · 전역 단축키").
  */
 let session: RecordingSession | null = null
 
@@ -194,7 +194,7 @@ export const appendRecordingChunk = async ({
   const active = session
   const micSamples = new Float32Array(pcm)
 
-  // 위젯의 오디오 그래프는 일시정지와 무관하게 돌아 청크가 계속 온다. 멈춰 있던 동안의 상대방 소리가
+  // 호스트 창의 오디오 그래프는 일시정지와 무관하게 돌아 청크가 계속 온다. 멈춰 있던 동안의 상대방 소리가
   // 재개 뒤에 섞이지 않도록 시스템 오디오도 같은 길이만큼 꺼내 버린다
   if (active.pausedAt !== null) {
     active.systemAudio?.take(micSamples.length)
@@ -308,8 +308,8 @@ export const setRecordingSystemAudio = async (isEnabled: boolean) => {
 }
 
 /**
- * 마이크 권한 거부처럼 위젯에서만 알 수 있는 실패를 두 창에 전한다.
- * 시작을 누른 사람이 메인 창에 있을 수 있어 실패가 위젯 안에만 남으면 안 된다.
+ * 마이크 권한 거부처럼 녹음 호스트 창에서만 알 수 있는 실패를 메인 창에 전한다.
+ * 시작을 누른 사람이 메인 창에 있을 수 있어 실패가 보이지 않는 호스트 창에만 남으면 안 된다.
  */
 export const reportRecordingError = ({ message }: { message: string }) =>
   publish({ errorMessage: message })

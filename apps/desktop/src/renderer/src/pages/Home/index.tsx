@@ -1,24 +1,25 @@
-import { Link } from 'react-router'
-import TopBar from '@renderer/shared/components/primitives/layout/TopBar'
-import { PATHS } from '@renderer/shared/routes/paths'
+import ImportAudioCard from '@renderer/modules/widgets/meeting/ImportAudioCard'
+import RecentMeetingsCard from '@renderer/modules/widgets/meeting/RecentMeetingsCard'
+import WeeklyStatsCard from '@renderer/modules/widgets/meeting/WeeklyStatsCard'
+import CurrentRecordingCard from '@renderer/modules/widgets/recording/CurrentRecordingCard'
+import PageColumn from '@renderer/shared/components/primitives/layout/PageColumn'
 import { useLocale } from '@renderer/shared/provider/context/localeContext'
 
 import styles from './index.module.css'
 
-/** 회의 목록은 사이드바가 들고 있어 홈은 빈 상태 안내만 한다 */
+/** 인사 + 카드 2×2 (knot "홈/기본", references/architecture.md "화면별 구성" > 홈) */
 export default function Home() {
   const { t } = useLocale()
 
   return (
-    <>
-      <TopBar title={t.sidebar.home.topBar} />
-      <div className={styles.empty}>
-        <h1 className={styles.title}>{t.sidebar.home.title}</h1>
-        <p className={styles.description}>{t.sidebar.home.description}</p>
-        <Link className={styles.recordLink} to={PATHS.record}>
-          {t.sidebar.home.startRecording}
-        </Link>
+    <PageColumn>
+      <h1 className={styles.greeting}>{t.sidebar.home.greeting}</h1>
+      <div className={styles.grid}>
+        <RecentMeetingsCard />
+        <WeeklyStatsCard />
+        <CurrentRecordingCard />
+        <ImportAudioCard />
       </div>
-    </>
+    </PageColumn>
   )
 }

@@ -1,7 +1,9 @@
 import { nativeTheme } from 'electron'
-import type { ThemePreference } from '@shared/types'
 
-/** 모든 창의 `prefers-color-scheme`과 위젯 패널의 vibrancy 재질이 이 값을 따른다 */
-export const applyTheme = (theme: ThemePreference) => {
-  nativeTheme.themeSource = theme
+/**
+ * 앱은 라이트만 그린다 (knot 리디자인, 2026-09-28). macOS가 다크여도 스크롤바·폼 컨트롤이
+ * 라이트로 그려지도록 고정한다 (references/architecture.md "다크 모드 없음")
+ */
+export const applyLightTheme = () => {
+  nativeTheme.themeSource = 'light'
 }

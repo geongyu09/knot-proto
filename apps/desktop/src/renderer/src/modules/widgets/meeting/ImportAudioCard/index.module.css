@@ -1,0 +1,20 @@
+.card {
+  height: 214px;
+}
+
+.iconTile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: var(--color-text-secondary);
+  background: var(--color-border);
+  border-radius: 14px;
+}
+
+/* 카드 안에서는 설정 행의 구분선이 필요 없다 */
+.row > * {
+  padding-bottom: 0;
+  border-top: none;
+}

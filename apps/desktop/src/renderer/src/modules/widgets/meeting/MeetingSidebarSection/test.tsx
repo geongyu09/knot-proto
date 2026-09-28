@@ -41,7 +41,7 @@ let changedListeners: (() => void)[] = []
 const renderSidebar = () =>
   render(
     <MemoryRouter>
-      <MeetingSidebarSection />
+      <MeetingSidebarSection onClose={vi.fn()} />
     </MemoryRouter>
   )
 

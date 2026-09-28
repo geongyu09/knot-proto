@@ -152,7 +152,10 @@
 ### 5-3. 녹음 위젯 패널 (메뉴바·전역 단축키 포함)
 
 사용자 요청으로 5-2보다 먼저 착수한다 (2026-09-18). 5-1처럼 로드맵 순서를 건너뛴 예외이므로 여기 기록해 둔다.
-설계·근거는 `references/architecture.md`의 "녹음 위젯 패널" 절, 함정은 `references/pitfalls.md`의 같은 이름 절.
+설계·근거는 `references/architecture.md`의 "녹음 호스트 창 · 메뉴바 · 전역 단축키" 절, 함정은 `references/pitfalls.md`의 같은 이름 절.
+
+> **2026-09-28 (`test/usage-analytics` 브랜치)**: 사용자 요청으로 플로팅 위젯 패널을 제거했다. 아래 완료 항목 중 패널·위젯 설정·위젯 단축키·트레이 "위젯 표시/숨김"은
+> 이 브랜치에서 되돌려졌고, 그래프 소유 창만 보이지 않는 녹음 호스트 창(`windows/recorder.ts`, `#/recorder`)으로 남는다.
 
 **계약 변경 (먼저 한다)**
 - [x] `src/shared/ipc.ts`: `recording.state` / `recording.control` / `recording.setSpeakerCount` / `recording.reportError`(모두 invoke), `events.recordingState` / `events.recordingCommand`, `widget.setVisible` 추가 (채널 문자열 표는 `references/architecture.md` IPC 규약 절)
@@ -277,6 +280,23 @@
 - [x] 후속: 다크 모드 — `base.css` 다크 블록(시스템 설정 연동), 스위치 손잡이·비활성 글자·성공 바탕 토큰 추가, 하드코딩 색 제거 (2026-09-28, `architecture.md` "다크 모드")
 - [x] 테마 설정: `AppSettings.theme`(`system`·`light`·`dark`, 기본 `system`), `ui.theme` 읽기·검증, main `nativeTheme.themeSource` 적용(시작 시·변경 시), 설정 "화면" 카테고리 (2026-09-28)
 - [ ] 다크 모드 `pnpm dev` 실제 확인 — 메인 창·위젯 패널(vibrancy)·설정·온보딩을 시스템 다크/라이트 전환하며 확인
+
+## knot 리디자인 (2026-09-28, Phase 번호 밖)
+
+사용자 요청: Figma `knot` 파일 "UI/UX Policy Guidelines" 페이지를 기반으로 앱 디자인을 다시 한다.
+사용자 결정: **비주얼 + 레이아웃**(팔레트·글꼴·카드·버튼 + 상단 GNB·하단 독·카드 홈·회의록 목록), **다크 모드 제거**.
+설계는 `architecture.md` "화면 디자인 (knot 리디자인)"·"메인 창 레이아웃". 위 "UI 리디자인" 절의 팔레트·사이드바·다크 모드 항목을 대체한다.
+
+- [x] 문서: SKILL.md 결정 표, `architecture.md` 토큰·다크 모드 없음·공통 컴포넌트·레이아웃·화면별 구성·라우트, `data-model.md` `ui.theme` 제거, `project-structure.md` `navigation` 도메인 (2026-09-28)
+- [x] 토큰: `base.css` knot 값, 다크 블록 제거, 그림자·반경·글자 크기 추가, `--font-sans` Pretendard 우선 (2026-09-28)
+- [x] 다크 모드 제거: `AppSettings.theme`·`src/shared/theme.ts`·`src/main/theme.ts`·`ThemeSelect`·설정 "화면" 카테고리·사전 문구, main `nativeTheme.themeSource = 'light'` 고정 (2026-09-28)
+- [x] primitives: `Button`(`accent` 제거, 크기 knot 값), `Badge`, `Switch` 색, `Card`·`PageColumn` 추가, `TopBar` 제거 — 두 앱 계약 동일하게 (2026-09-28)
+- [x] 셸: `navigation/GnbSection`, `recording/DockSection`, 회의 목록 패널(여닫기·본문 밀어내기·`localStorage`) (2026-09-28)
+- [x] 홈 카드 2×2, `/meetings` 회의록 목록 화면 (2026-09-28)
+- [x] 녹음·상세·설정·온보딩·위젯: 상단 바 제거, knot 모양 반영 (2026-09-28)
+- [x] `pnpm test` / `pnpm typecheck` / `pnpm lint` / electron-vite build (2026-09-28)
+- [x] 화면 확인 (스크린샷 드라이버) — 홈·목록·상세·녹음·설정·목록 패널, 1280×800·최소 1040×640 (2026-09-28)
+- [ ] `pnpm dev` 실제 확인 — 녹음 중 독(시간 칩·정지)·홈 진행 중 카드, 위젯 패널이 macOS 다크에서도 라이트로 그려지는지
 
 ## LLM 공급자 선택 (2026-09-24, Phase 번호 밖)
 
@@ -450,3 +470,32 @@ CLI 라벨을 버리고 결과 구간을 5초 조각으로 재임베딩(`sherpa-
 - [ ] **CI.** `build.yml`에 whisper.cpp 소스 빌드 캐시, `concurrency`(이전 실행 취소), `apps/web` 빌드 포함
 - [ ] **문서 드리프트.** k-means 결정 근거가 git 제외된 `docs/external/`에만 있어 커밋된 문서만 보면 AHC가 정답처럼 읽힌다 → 근거 요약을 `docs/diarization-clustering-results.md`에 옮긴다. `data-model.md` 설정 키 표에 `llm.provider`·`llm.openaiModel`·`llm.*ApiKey` 추가. `architecture.md` IPC 규약 블록에 `events.settingsChanged` 추가. `.claude/rules/*`의 존재하지 않는 예시(`useAudioLevel`, `RecordButton`, `groupBySpeaker`)를 실제 코드 예로 교체. Windows 잔재(`win`/`nsis` 블록, `build:win`, `icon.ico`, `electron-winstaller`)는 제거하거나 "유지하지 않음"을 파일 주석으로
 - [ ] 완료 기준: `pnpm build:mac` 결과 크기가 문서 목표 이하, `release:mac` 없음, `.nvmrc`로 새 셸에서 `pnpm test` 전부 통과, 웹 프로토타입이 core 군집으로 데스크탑과 같은 라벨을 냄
+
+## 사용 정보 수집 (2026-09-28, `test/usage-analytics` 브랜치 전용, Phase 번호 밖)
+
+사용 이벤트·성능·오류·환경과 회의 내용(발화·요약·녹음)을 자체 수집 서버로, 이벤트·수치만 외부 분석 서비스로 보낸다. 앱 안에서 동의를 받지 않고, 사전 동의한 팀에게만 배포한다 (사용자 결정).
+`main`의 "서버 없이" 방향과 달라 브랜치를 나눴으며 `main`에 병합하지 않는다. 설계는 `telemetry.md`, 결정 표는 `SKILL.md` 1절.
+
+### 0. 미결 결정 (코드 전에)
+- [x] 수집 서버 스택·저장소 결정 (Hono + `node:sqlite` + 로컬 디스크, `telemetry.md` "수집 서버")
+- [ ] 수집 서버 호스트·도메인 결정 (배포 형태는 Docker + Caddy로 결정)
+- [x] 외부 분석 서비스 종류 결정, 오류·크래시 전송처 결정 — PostHog(이벤트) + Sentry(오류·크래시), 2026-09-28
+- [x] 데스크탑↔수집 서버 HTTP 계약 확정 (`telemetry.md` "전송 계약") — 서버보다 데스크탑을 먼저 만든다 (2026-09-28)
+- [ ] 서버 보관 기간·팀 탈퇴 시 삭제 절차, 대시보드 여부
+
+### 1. 계약
+- [x] `packages/telemetry` 신설 — 이벤트 이름·payload 타입·envelope·회의 스냅샷 스키마 (`monorepo.md` 구성 표·`.claude/rules/project-structure.md` 갱신)
+- [x] `data-model.md` "사용 정보 outbox" 테이블 마이그레이션(6), `telemetry.installId` 설정 키
+- [x] IPC `telemetry:track`(renderer → main) + preload `window.api.telemetry.track`
+
+### 2. 데스크탑
+- [x] `src/main/telemetry/` — 수집기, outbox, 전송 워커(묶음·백오프), 싱크 어댑터(자체 서버·PostHog) + Sentry
+- [x] 이벤트 호출 지점: 녹음·가져오기·파이프라인 단계별 시간·요약·교정·복사·화자 편집·화면 이동·오류
+- [x] 회의 스냅샷 전송과 내용 변경 시 재전송, 녹음 WAV 파일 업로드(이어 올리기) → 성공 뒤 원본 삭제로 순서 변경
+- [x] 빌드 분리 — `appId`·`productName`·업데이트 끔, 팀 토큰 빌드 주입(`.env.example`), 설정 화면 업데이트 자리의 "팀 테스트 빌드" 표시
+- [ ] 실제 녹음 한 건으로 스냅샷·WAV 업로드 확인 (가짜 서버로 이벤트 경로·오프라인 재전송은 2026-09-28 확인, 업로드는 단위 테스트만)
+
+### 3. 수집 서버 (`apps/collector`)
+- [x] 워크스페이스 신설, 팀 토큰 검증, 이벤트 묶음 수신, 회의 스냅샷 upsert·삭제 표시, 녹음 파일 업로드 수신 (2026-09-28, vitest 16개 + 실서버 확인)
+- [x] 개발 환경 `pnpm dev:stack`(서버 + 데스크탑 한 번에), `collector:inspect`, 배포 환경(Docker 이미지 + Caddy compose), `collector:smoke` (`telemetry.md` "환경"). 2026-09-28 dev:stack으로 데스크탑 이벤트 도착·번들 스모크 통과 확인, **Docker 이미지 빌드·compose는 Docker 데몬이 꺼져 있어 미확인**
+- [ ] 완료 기준: 새 `userData`로 빌드를 실행해 회의 하나를 녹음 → 서버에 이벤트·스냅샷·WAV가 모두 도착, 서버를 끈 채 녹음해도 앱 동작에 영향이 없고 서버를 다시 켜면 밀린 데이터가 도착

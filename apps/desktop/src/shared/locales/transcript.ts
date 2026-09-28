@@ -1,6 +1,5 @@
 /** 회의 상세(회의록·화자·하단 녹음 바) 문구. ko가 타입을 정하고 en은 같은 키를 가져야 한다 (references/architecture.md "UI 언어") */
 export const transcriptKo = {
-  topBarTitle: '회의록',
   // 이름을 지정하지 않은 화자의 기본 표시. 복사 텍스트에도 그대로 들어간다 (@meeting-stt/core/format)
   defaultSpeakerNames: {
     numbered: ({ index }: { index: number }) => `화자 ${index}`,
@@ -90,7 +89,6 @@ export const transcriptKo = {
 }
 
 export const transcriptEn: typeof transcriptKo = {
-  topBarTitle: 'Transcript',
   sectionLabel: 'Transcript',
   loading: 'Loading the meeting',
   notFound: 'Meeting not found',

@@ -2,20 +2,18 @@ import { globalShortcut } from 'electron'
 import { formatAccelerator } from '@shared/shortcut'
 import { getAppSettings } from '../db/settings'
 import { warn } from '../log'
-import { requestRecordingCommand, toggleWidgetVisible } from './widget'
+import { requestRecordingCommand } from './recorder'
 import { t } from '../locale'
 
 interface ShortcutAccelerators {
   recordingShortcut: string
-  widgetShortcut: string
 }
 
-const bindings = ({ recordingShortcut, widgetShortcut }: ShortcutAccelerators) => [
+const bindings = ({ recordingShortcut }: ShortcutAccelerators) => [
   {
     accelerator: recordingShortcut,
     action: () => requestRecordingCommand({ kind: 'toggle' })
-  },
-  { accelerator: widgetShortcut, action: toggleWidgetVisible }
+  }
 ]
 
 /** 등록하지 못한 accelerator 목록. 다른 앱이 선점했거나 Electron이 모르는 키면 실패한다 */
@@ -35,7 +33,7 @@ const registerAll = (accelerators: ShortcutAccelerators) => {
 
 /**
  * 앱 시작 시 등록. 실패해도 앱을 멈추지 않는다 —
- * 단축키가 없어도 패널과 메뉴바로 모든 동작을 할 수 있다 (references/pitfalls.md).
+ * 단축키가 없어도 메인 창과 메뉴바로 모든 동작을 할 수 있다 (references/pitfalls.md).
  */
 export const registerGlobalShortcuts = () => {
   const failed = registerAll(getAppSettings())
@@ -56,10 +54,6 @@ export const replaceGlobalShortcuts = ({
   next: ShortcutAccelerators
   previous: ShortcutAccelerators
 }) => {
-  if (next.recordingShortcut === next.widgetShortcut) {
-    throw new Error(t().main.errors.shortcutsMustDiffer)
-  }
-
   const failed = registerAll(next)
   if (failed.length === 0) return
 

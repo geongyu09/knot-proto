@@ -57,10 +57,10 @@
 .elapsed,
 .idleElapsed {
   margin: 0;
-  font-family: var(--font-mono);
   font-size: var(--font-timer);
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1;
   letter-spacing: -0.02em;
 }

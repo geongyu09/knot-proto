@@ -1,7 +1,15 @@
 .shell {
+  position: relative;
   display: flex;
+  flex-direction: column;
   height: 100%;
   overflow: hidden;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
 .main {
@@ -9,5 +17,17 @@
   flex: 1;
   flex-direction: column;
   min-width: 0;
-  height: 100%;
+  min-height: 0;
+}
+
+/* 독이 본문을 가리지 않게 그 높이만큼 비운다. 스크롤은 각 화면 안에서 한다 */
+.withDock {
+  padding-bottom: var(--dock-zone);
+}
+
+.dockSlot {
+  position: absolute;
+  bottom: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
 }

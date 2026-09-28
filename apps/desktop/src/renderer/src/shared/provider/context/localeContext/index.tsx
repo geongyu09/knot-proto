@@ -12,7 +12,7 @@ interface LocaleProviderProps {
 
 /**
  * UI 언어의 단일 출처 (references/architecture.md "UI 언어"). 마운트 시 설정을 한 번 읽고,
- * 이후에는 `settings:changed` push로 따라간다 — 위젯 창은 설정 화면과 다른 창이라 push로만 알 수 있다.
+ * 이후에는 `settings:changed` push로 따라간다 — 녹음 호스트 창은 설정 화면과 다른 창이라 push로만 알 수 있다.
  */
 export function LocaleProvider({ children }: LocaleProviderProps) {
   const [locale, setLocale] = useState<Locale>(DEFAULT_LOCALE)

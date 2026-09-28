@@ -12,7 +12,7 @@ export const CHUNK_SAMPLES = 8192
 
 /**
  * 청크 하나의 RMS(0~1). 레벨 미터 값을 main이 계산해 두 창에 같은 값을 보내기 위한 순수 함수다
- * (references/architecture.md의 "녹음 위젯 패널").
+ * (references/architecture.md의 "녹음 호스트 창 · 메뉴바 · 전역 단축키").
  */
 export const rmsOf = (samples: Float32Array) => {
   if (samples.length === 0) return 0

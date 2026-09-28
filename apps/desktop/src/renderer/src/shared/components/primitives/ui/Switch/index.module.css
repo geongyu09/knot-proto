@@ -12,7 +12,7 @@
 }
 
 .track[aria-checked='true'] {
-  background: var(--color-text);
+  background: var(--color-primary);
 }
 
 .track:disabled {

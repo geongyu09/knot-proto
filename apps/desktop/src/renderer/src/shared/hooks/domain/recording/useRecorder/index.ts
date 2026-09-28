@@ -82,7 +82,7 @@ const closeGraph = async (graph: RecordingGraph) => {
 }
 
 /**
- * 오디오 그래프의 유일한 소유자인 위젯 창 전용 훅. 상태(녹음 중 여부·경과 시간·레벨)는
+ * 오디오 그래프의 유일한 소유자인 녹음 호스트 창 전용 훅. 상태(녹음 중 여부·경과 시간·레벨)는
  * main 세션이 들고 있으므로 여기서는 그래프와 실패만 다룬다 (references/architecture.md).
  */
 const useRecorder = ({ isReady }: UseRecorderParams) => {

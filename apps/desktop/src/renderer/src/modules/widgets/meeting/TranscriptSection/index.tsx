@@ -3,13 +3,10 @@ import type { CSSProperties, ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import PipelineProgress from '@renderer/modules/features/pipeline/PipelineProgress'
 import RefinePanel from '@renderer/modules/features/refine/RefinePanel'
-import TopBar from '@renderer/shared/components/primitives/layout/TopBar'
 import Button from '@renderer/shared/components/primitives/ui/Button'
-import useNow from '@renderer/shared/hooks/common/useNow'
 import useMeeting from '@renderer/shared/hooks/domain/meeting/useMeeting'
 import { PATHS } from '@renderer/shared/routes/paths'
 import { useLocale } from '@renderer/shared/provider/context/localeContext'
-import { meetingDateGroupLabel, meetingDateGroupOf } from '@renderer/shared/utils/meetingDateGroup'
 
 import useAudioSeek from './model/useAudioSeek'
 import useRailResize from './model/useRailResize'
@@ -25,8 +22,6 @@ import UtteranceRow from './ui/UtteranceRow'
 import { toSpeakerOptions } from './utils/toSpeakerOptions'
 import styles from './index.module.css'
 
-const NOW_REFRESH_MS = 60_000
-
 interface TranscriptSectionProps {
   meetingId: string
   /** 오른쪽 레일 위쪽에 끼울 내용. 상세 화면은 요약을 넣는다 */
@@ -39,8 +34,7 @@ interface TranscriptSectionProps {
  */
 export default function TranscriptSection({ meetingId, aside }: TranscriptSectionProps) {
   const navigate = useNavigate()
-  const { t, locale } = useLocale()
-  const { now } = useNow({ intervalMs: NOW_REFRESH_MS })
+  const { t } = useLocale()
   const {
     meeting,
     utterances,
@@ -77,19 +71,13 @@ export default function TranscriptSection({ meetingId, aside }: TranscriptSectio
   const { railWidth, isResizing, startResize, moveResize, endResize, resizeByKey, resetWidth } =
     useRailResize({ containerRef: contentRef })
 
-  const topBarTitle = t.transcript.topBarTitle
-
   if (isLoading && !meeting) {
-    return <Placeholder title={topBarTitle} message={t.transcript.loading} />
+    return <Placeholder message={t.transcript.loading} />
   }
-  if (error) return <Placeholder title={topBarTitle} message={error.message} isError />
-  if (!meeting) return <Placeholder title={topBarTitle} message={t.transcript.notFound} />
+  if (error) return <Placeholder message={error.message} isError />
+  if (!meeting) return <Placeholder message={t.transcript.notFound} />
 
   const actionError = saveError ?? copyError
-  const groupLabel = meetingDateGroupLabel({
-    group: meetingDateGroupOf({ epochMs: meeting.createdAt, now }),
-    locale
-  })
 
   const handleDelete = async () => {
     if (await removeMeeting()) navigate(PATHS.home)
@@ -152,7 +140,6 @@ export default function TranscriptSection({ meetingId, aside }: TranscriptSectio
 
   return (
     <>
-      <TopBar title={`${topBarTitle} · ${groupLabel}`} />
       <div
         ref={contentRef}
         className={styles.content}

@@ -126,14 +126,11 @@ CREATE TABLE IF NOT EXISTS settings (
 | `audio.keep` | boolean | `false` | 파이프라인 성공 후 원본 WAV를 보관할지. 끄면 삭제하고 `meetings.audio_path`를 `NULL`로 만든다 |
 | `update.check` | boolean | `false` | 앱 시작 시 새 버전이 있는지 확인할지 (Phase 4). 꺼져 있으면 네트워크를 전혀 쓰지 않는다 |
 | `stt.model` | `WhisperModelId` | `'turbo-q5'` | 온보딩·설정에서 고른 음성 인식 모델 (Phase 4). 모르는 값이면 기본 모델로 읽는다 |
-| `widget.enabled` | boolean | `true` | 앱 시작 시 녹음 위젯 패널을 띄울지 (Phase 5-3). 꺼도 메뉴바·전역 단축키는 그대로 동작한다 |
-| `widget.bounds` | `{ x, y }` | 없음 | 사용자가 옮긴 패널 위치 (Phase 5-3). 현재 디스플레이의 `workArea` 밖이면 버리고 기본 위치(우측 중앙)로 되돌린다 |
-| `widget.fade` | boolean | `true` | 위젯 패널이 포커스를 잃으면 반투명하게 할지 |
-| `widget.fadeOpacity` | number | `0.55` | 포커스가 없을 때의 불투명도. `0.2`~`0.95`, 0.05 단위. 범위를 벗어나면 기본값으로 읽고, 저장 요청은 거절한다 |
+| ~~`widget.enabled`·`widget.bounds`·`widget.fade`·`widget.fadeOpacity`~~ | — | — | **2026-09-28 제거** (이 브랜치에서 위젯 패널 제거). 이전 빌드가 쓴 행이 남아 있어도 읽지 않는다 (`references/architecture.md` "녹음 호스트 창 · 메뉴바 · 전역 단축키") |
 | `shortcut.recording` | string | `'Alt+Command+R'` | 녹음 토글 전역 단축키 (Electron accelerator). 형식이 틀리면 기본값으로 읽는다 |
-| `shortcut.widget` | string | `'Alt+Command+W'` | 위젯 표시/숨김 전역 단축키. 녹음 단축키와 같을 수 없다 |
+| ~~`shortcut.widget`~~ | — | — | **2026-09-28 제거** (위젯 패널과 함께). 남은 행은 읽지 않는다 |
 | `pipeline.quiet` | boolean | `false` | 조용히 처리. 켜면 화자 분리 스레드를 줄이고 STT와 화자 분리를 순차로 돌린다. 느려지는 대신 발열·팬 소음이 준다. 잡이 **시작할 때** 읽으므로 진행 중인 잡에는 적용되지 않는다 (`references/architecture.md` 가속·스레드 정책) |
-| `ui.theme` | `'system' \| 'light' \| 'dark'` | `'system'` | 화면 테마 (2026-09-28). main이 `nativeTheme.themeSource`에 넣는다. 모르는 값이면 `'system'`으로 읽고, 저장 요청은 거절한다 (`references/architecture.md` "다크 모드") |
+| ~~`ui.theme`~~ | — | — | **2026-09-28 제거** (knot 리디자인, 다크 모드 없음). 이전 빌드가 쓴 행이 남아 있어도 읽지 않는다 (`references/architecture.md` "다크 모드 없음") |
 | `refine.autoExternal` | boolean | `false` | 외부 LLM 공급자일 때 회의록이 만들어지면 자동으로 문장 교정할지 (2026-09-28). 켜면 회의가 끝날 때마다 회의록이 그 회사 서버로 전송된다. 로컬 공급자의 자동 용어 교정과는 무관하다 (`references/architecture.md` "회의록 교정") |
 | `ui.locale` | `'ko' \| 'en'` | `'ko'` | 화면·메뉴바·main 오류 문구의 언어 (2026-09-25). 인식·요약 언어가 아니다. 모르는 값이면 `'ko'`로 읽고, 저장 요청은 거절한다 (`references/architecture.md` "UI 언어") |
 | `audio.inputDevice` | `{ deviceId, label } \| null` | `null` | 녹음에 쓸 마이크 (2026-09-25). `null`이면 시스템 기본 마이크. `deviceId`는 Chromium이 주는 origin별 해시(1~200자), `label`은 고를 당시의 장치 이름(0~200자)이며 장치를 뺀 뒤 설정 화면에 "연결되지 않음"으로 보여주기 위해 함께 둔다. 모양이 다르면 `null`로 읽고, 저장 요청은 거절한다. 녹음 그래프는 시작할 때 이 값을 읽어 `deviceId: { ideal }`로 요청하므로 장치가 없으면 기본 마이크로 폴백한다 (`references/architecture.md` "마이크 입력 장치와 테스트") |
@@ -149,11 +146,7 @@ export interface AppSettings {
   isAudioKept: boolean
   isUpdateCheckEnabled: boolean
   isQuietProcessing: boolean
-  isWidgetEnabled: boolean
-  isWidgetFadeEnabled: boolean
-  widgetFadeOpacity: number
   recordingShortcut: string
-  widgetShortcut: string
   inputDevice: AudioInputDevice | null
   locale: Locale
 }
@@ -182,8 +175,6 @@ export interface AppSettings {
   ```
 
   저장할 때 main이 줄 앞뒤 공백을 자르고 빈 줄·중복 용어(`=` 앞부분 기준, 대소문자 무시)를 뺀다. 한도를 넘으면 거절한다.
-- **`widget.bounds`도 `AppSettings`에 넣지 않는다.** 설정 화면에서 사람이 고르는 값이 아니라 창을 옮길 때 main이 적어 두는
-  런타임 상태이고, 읽고 쓰는 쪽이 `src/main/windows/widget.ts` 하나뿐이기 때문이다.
 - **LLM 공급자(`llm.provider`, `llm.claudeApiKey`, `llm.openaiApiKey`, `llm.openaiModel`)도 `AppSettings`에 넣지 않는다** (2026-09-24). 키 저장·CLI 탐색·연결 확인이 붙은
   별도 카테고리라 자기 채널(`llm:status`/`llm:setProvider`/`llm:setApiKey`/`llm:setOpenaiModel`)로 읽고 쓴다 (`references/architecture.md` "LLM 공급자").
 
@@ -214,6 +205,22 @@ export interface AppSettings {
     claudeCliVersion: string | null
   }
   ```
+
+## 사용 정보 outbox (`test/usage-analytics` 브랜치 전용)
+
+전송 전 이벤트·업로드를 잃지 않기 위한 로컬 대기열이다. 설계는 `telemetry.md`. 마이그레이션 6에서 만든다 (2026-09-28 확정).
+
+| 테이블 | 컬럼 | 뜻 |
+| --- | --- | --- |
+| `telemetry_outbox` | `id` INTEGER PK AUTOINCREMENT, `sink` TEXT(`collector`·`posthog`), `kind` TEXT(`event`·`meeting_snapshot`·`meeting_deleted`), `payload` TEXT(JSON), `created_at` INTEGER(epoch ms), `attempts` INTEGER, `next_attempt_at` INTEGER(epoch ms) | 싱크별 전송 대기열. 같은 이벤트도 싱크마다 행이 따로 있다. `event`의 payload는 `TelemetryEnvelope`, `meeting_snapshot`·`meeting_deleted`는 `{ meetingId }`뿐이고 스냅샷 본문은 보낼 때 만든다. 성공한 행만 지운다 |
+| `telemetry_uploads` | `meeting_id` TEXT PK (FK 없음), `audio_path` TEXT, `total_bytes` INTEGER, `uploaded_bytes` INTEGER, `status` TEXT(`pending`·`done`·`failed`), `attempts` INTEGER, `next_attempt_at` INTEGER | 녹음 WAV 이어 올리기 상태. `pending`인 동안은 `audio.keep`이 꺼져 있어도 원본을 지우지 않고, `done`이 되는 순간 그때의 `audio.keep`을 보고 지운다. `failed`는 파일이 사라졌거나 서버가 재시도해도 소용없는 `4xx`를 준 경우다(네트워크 실패·`5xx`는 재시도). `failed`도 `done`처럼 그 순간 `audio.keep`을 적용한다. 파이프라인이 실패한 회의의 녹음도 원인 분석용으로 대기열에 올린다(원본은 재시도용으로 어차피 남는다) |
+
+- `telemetry_uploads.meeting_id`에 FK를 걸지 않는 이유: 회의가 지워져도 행을 남겨 워커가 "파일 없음 → failed"로 정리하게 한다. CASCADE로 사라지면 진행 중 업로드가 조용히 끊긴다.
+- 인덱스: `telemetry_outbox(sink, next_attempt_at)`.
+
+| 설정 키 | 타입 | 기본값 | 뜻 |
+| --- | --- | --- | --- |
+| `telemetry.installId` | string(UUID) | 첫 실행 때 생성 | 설치 식별자. 기기·계정 정보에서 파생하지 않는다. 설정 화면에 노출하지 않는다 |
 
 ## 공유 타입 (`src/shared/types.ts`)
 

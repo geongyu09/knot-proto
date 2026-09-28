@@ -1,10 +1,9 @@
 .badge {
   display: inline-block;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-full);
-  font-size: var(--font-sm);
-  font-weight: 500;
-  line-height: 1.7;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  font-size: var(--font-xs);
+  line-height: 1.5;
   white-space: nowrap;
 }
 

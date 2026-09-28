@@ -13,6 +13,7 @@ import type {
   SummaryStage,
   WhisperModelId
 } from './types'
+import type { RendererEventName, TelemetryEventMap } from '@meeting-stt/telemetry/events'
 
 /**
  * IPC 채널과 payload 타입의 단일 정의. main·preload·renderer가 모두 이 파일을 import한다.
@@ -32,7 +33,6 @@ export const IPC = {
     setSystemAudio: 'recording:setSystemAudio',
     setPaused: 'recording:setPaused'
   },
-  widget: { setVisible: 'widget:setVisible' },
   shortcuts: { setSuspended: 'shortcuts:setSuspended' },
   meetings: {
     list: 'meetings:list',
@@ -68,22 +68,32 @@ export const IPC = {
     downloadSummary: 'models:downloadSummary'
   },
   update: { check: 'update:check', download: 'update:download', install: 'update:install' },
+  // 사용 정보 수집 (test/usage-analytics 브랜치 전용, references/telemetry.md)
+  telemetry: { track: 'telemetry:track' },
   events: {
     progress: 'pipeline:progress',
     summary: 'summary:progress',
     refine: 'refine:progress',
     modelDownload: 'models:downloadProgress',
-    // 위젯 창은 앱 시작 때 모델 상태를 읽고 언마운트되지 않는다. 다운로드 뒤 다시 읽게 알린다 (references/distribution.md 3절)
+    // 녹음 호스트 창은 앱 시작 때 모델 상태를 읽고 언마운트되지 않는다. 다운로드 뒤 다시 읽게 알린다 (references/distribution.md 3절)
     modelsChanged: 'models:changed',
     updateAvailable: 'update:available',
     // 조회 채널과 이름이 겹칠 수 없어 이벤트 쪽에 Changed를 붙인다 (references/architecture.md IPC 규약)
     recordingState: 'recording:stateChanged',
     meetingsChanged: 'meetings:changed',
     recordingCommand: 'recording:command',
-    // 설정 화면이 바꾼 값을 위젯 창도 알아야 한다 (UI 언어). payload는 저장된 설정 전체다
+    // 설정 화면이 바꾼 값을 녹음 호스트 창도 알아야 한다 (UI 언어). payload는 저장된 설정 전체다
     settingsChanged: 'settings:changed'
   }
 } as const
+
+/**
+ * renderer가 보내는 사용 정보 이벤트. main이 이름 허용 목록과 props 모양을 다시 거른다
+ * (references/telemetry.md "싱크별 규칙").
+ */
+export type TrackTelemetryRequest = {
+  [Name in RendererEventName]: { name: Name; props: TelemetryEventMap[Name] }
+}[RendererEventName]
 
 export interface RequestMicrophonePermissionResponse {
   isGranted: boolean
@@ -113,7 +123,7 @@ export interface StopRecordingRequest {
 export type StopRecordingResponse = Meeting
 
 /**
- * 진행 중 녹음의 단일 출처. 위젯 패널과 메인 창이 같은 값을 본다 (references/architecture.md).
+ * 진행 중 녹음의 단일 출처. 녹음 호스트 창·메인 창·메뉴바가 같은 값을 본다 (references/architecture.md).
  * 조회는 `recording:state`, push는 `recording:stateChanged`로 같은 모양을 쓴다.
  */
 export interface RecordingStateEvent {
@@ -131,7 +141,7 @@ export interface RecordingStateEvent {
   speakerCount?: number
   /** 정지가 끝난 순간 한 번만 실린다. 메인 창이 이 회의의 상세로 이동한다 */
   stoppedMeetingId?: string
-  /** 시작·정지가 실패한 순간 한 번만 실린다. 위젯에서만 알 수 있는 실패를 메인 창도 보여준다 */
+  /** 시작·정지가 실패한 순간 한 번만 실린다. 녹음 호스트 창에서만 알 수 있는 실패를 메인 창이 보여준다 */
   errorMessage?: string
   /** 녹음 화면의 라이브 받아쓰기 보기. 저장되지 않는 미리보기다 (references/architecture.md "라이브 받아쓰기") */
   liveTranscript: LiveTranscriptState
@@ -179,7 +189,7 @@ export interface SetRecordingPausedRequest {
   isPaused: boolean
 }
 
-/** 메인 창·Tray·전역 단축키가 보내는 요청. main이 위젯에 `recording:command`로 넘긴다 */
+/** 메인 창·Tray·전역 단축키가 보내는 요청. main이 녹음 호스트 창에 `recording:command`로 넘긴다 */
 export interface ControlRecordingRequest {
   kind: 'start' | 'stop' | 'toggle'
 }
@@ -190,13 +200,9 @@ export interface SetSpeakerCountRequest {
   speakerCount?: number
 }
 
-/** 마이크 권한 거부처럼 위젯에서만 일어나는 실패를 세션에 모은다 */
+/** 마이크 권한 거부처럼 녹음 호스트 창에서만 일어나는 실패를 세션에 모은다 */
 export interface ReportRecordingErrorRequest {
   message: string
-}
-
-export interface SetWidgetVisibleRequest {
-  isVisible: boolean
 }
 
 /** 설정 화면에서 새 단축키를 입력받는 동안 전역 단축키를 해제한다 */

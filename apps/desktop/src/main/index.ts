@@ -19,7 +19,7 @@ import { closeDb } from './db/connection'
 import { failStaleMeetings } from './db/meetings'
 import { getAppSettings, getWhisperModelId } from './db/settings'
 import { setCurrentLocale } from './locale'
-import { applyTheme } from './theme'
+import { applyLightTheme } from './theme'
 import { registerIpcHandlers } from './ipc/handlers'
 import { error as logError, info, messageOf, warn } from './log'
 import { setMeetingsChangedListener } from './meetingsChanged'
@@ -30,11 +30,13 @@ import {
   setSummaryProgressListener
 } from './pipeline/queue'
 import { removeStalePipelineArtifacts } from './pipeline/run'
+import { initSentry } from './telemetry/sentry'
+import { startTelemetry, stopTelemetryWorker } from './telemetry/start'
 import { checkForUpdates } from './updater'
 import { createMainWindow, showMainWindow } from './windows/main'
 import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './windows/shortcuts'
 import { createTray, destroyTray, refreshTray } from './windows/tray'
-import { createWidgetWindow } from './windows/widget'
+import { createRecorderWindow } from './windows/recorder'
 
 /**
  * 로컬 앱이라 마이크 외의 권한 요청은 받지 않는다.
@@ -65,7 +67,7 @@ const broadcastSummaryProgress = (event: SummaryProgressEvent) =>
 const broadcastRefineProgress = (event: RefineProgressEvent) =>
   broadcast({ channel: IPC.events.refine, event })
 
-/** 녹음 상태는 위젯·메인 창·메뉴바가 같은 값을 봐야 한다 (references/architecture.md) */
+/** 녹음 상태는 녹음 호스트·메인 창·메뉴바가 같은 값을 봐야 한다 (references/architecture.md) */
 const broadcastRecordingState = (event: RecordingStateEvent) => {
   broadcast({ channel: IPC.events.recordingState, event })
   refreshTray()
@@ -96,6 +98,9 @@ const cleanupPreviousRun = async () => {
   }
 }
 
+// 네이티브 크래시 수집은 ready 전에 켜야 한다 (references/telemetry.md "싱크별 규칙")
+initSentry()
+
 // 커스텀 스킴 권한은 ready 전에만 줄 수 있다
 registerMeetingAudioScheme()
 
@@ -103,14 +108,15 @@ registerMeetingAudioScheme()
 const isPrimaryInstance = app.requestSingleInstanceLock()
 if (!isPrimaryInstance) app.quit()
 
-// 위젯이 먼저 잡힐 수 있어 창 목록의 0번을 쓰지 않는다 (references/pitfalls.md)
+// 녹음 호스트 창이 먼저 잡힐 수 있어 창 목록의 0번을 쓰지 않는다 (references/pitfalls.md)
 app.on('second-instance', () => showMainWindow())
 
 app.whenReady().then(async () => {
   // quit()은 비동기라 ready가 먼저 올 수 있다. 두 번째 인스턴스는 DB를 열지 않는다
   if (!isPrimaryInstance) return
 
-  electronApp.setAppUserModelId('com.meetingstt.app')
+  // 팀 테스트 빌드는 공개 빌드와 appId를 가른다 (references/telemetry.md "빌드 분리")
+  electronApp.setAppUserModelId('com.meetingstt.team')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
@@ -128,12 +134,13 @@ app.whenReady().then(async () => {
   setSelectedWhisperModelId(getWhisperModelId())
   // main의 문구 언어. 이후에는 settings:update 핸들러가 바꾼다 (references/architecture.md "UI 언어")
   setCurrentLocale(getAppSettings().locale)
-  // 창을 만들기 전에 넣어야 재시작해도 첫 화면부터 저장된 테마로 뜬다 (references/architecture.md "다크 모드")
-  applyTheme(getAppSettings().theme)
+  // 창을 만들기 전에 넣어야 첫 화면부터 라이트로 뜬다. 다크 모드는 없다 (references/architecture.md "다크 모드 없음")
+  applyLightTheme()
   await cleanupPreviousRun()
+  await startTelemetry()
 
   const mainWindow = createMainWindow()
-  createWidgetWindow()
+  createRecorderWindow()
   createTray()
   registerGlobalShortcuts()
 
@@ -144,7 +151,7 @@ app.whenReady().then(async () => {
   app.on('activate', () => showMainWindow())
 })
 
-// 위젯이 떠 있으면 이 이벤트는 오지 않는다. macOS 전용이라 종료는 메뉴바·⌘Q가 담당한다
+// 녹음 호스트 창이 남아 있어 이 이벤트는 오지 않는다. macOS 전용이라 종료는 메뉴바·⌘Q가 담당한다
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
@@ -167,6 +174,7 @@ app.on('before-quit', (event) => {
 })
 
 app.on('will-quit', () => {
+  stopTelemetryWorker()
   unregisterGlobalShortcuts()
   destroyTray()
   closeDb()

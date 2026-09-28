@@ -17,7 +17,7 @@ import {
   updateMeetingSummary
 } from '../db/meetings'
 import { applyRefineResult } from '../db/refine'
-import { getAppSettings, getGlossarySettings } from '../db/settings'
+import { getAppSettings, getGlossarySettings, getLlmProvider } from '../db/settings'
 import { saveTranscript } from '../db/transcript'
 import { listUtterances } from '../db/utterances'
 import { runGlossaryDraft } from '../glossary/draft'
@@ -29,6 +29,10 @@ import { runRefine } from '../refine/run'
 import { runSentenceRefine } from '../refine/sentence'
 import { runSummary } from '../summary/run'
 import { buildTranscriptText } from '../summary/transcript'
+import { trackPipelineCompleted } from '../telemetry/pipeline'
+import { createStageTimer } from '../telemetry/stageTimer'
+import { track, trackMeetingSnapshot } from '../telemetry/track'
+import { registerRecordingUpload } from '../telemetry/upload'
 import { runPipeline } from './run'
 import { t } from '../locale'
 
@@ -64,6 +68,9 @@ export const setRefineProgressListener = (listener: (event: RefineProgressEvent)
   notifyRefine = listener
 }
 
+/** 잡이 실패했을 때 어느 단계였는지 사용 정보에 싣기 위해 회의별 마지막 단계를 기억한다 */
+const lastStages = new Map<string, string>()
+
 const report = ({
   meetingId,
   stage,
@@ -72,27 +79,43 @@ const report = ({
   meetingId: string
   stage: PipelineStage
   percent: number
-}) => notifyPipeline({ meetingId, stage, percent: Math.round(percent) })
+}) => {
+  lastStages.set(meetingId, stage)
+  notifyPipeline({ meetingId, stage, percent: Math.round(percent) })
+}
 
 interface ReportSummaryParams extends Omit<SummaryProgressEvent, 'stage'> {
   stage: SummaryStage
 }
 
-const reportSummary = ({ percent, ...rest }: ReportSummaryParams) =>
+const reportSummary = ({ percent, ...rest }: ReportSummaryParams) => {
+  lastStages.set(rest.meetingId, rest.stage)
   notifySummary({ ...rest, percent: Math.round(percent) })
+}
 
 interface ReportRefineParams extends Omit<RefineProgressEvent, 'stage'> {
   stage: RefineStage
 }
 
-const reportRefine = ({ percent, ...rest }: ReportRefineParams) =>
+const reportRefine = ({ percent, ...rest }: ReportRefineParams) => {
+  lastStages.set(rest.meetingId, rest.stage)
   notifyRefine({ ...rest, percent: Math.round(percent) })
+}
 
 /**
  * 회의록이 만들어졌으면 원본 WAV는 기본적으로 지운다 (설정 `audio.keep`, references/architecture.md).
+ * 이 브랜치에서는 녹음 업로드가 끝날 때까지 지우지 않고, 업로드가 끝나면 업로드 워커가 지운다
+ * (references/telemetry.md "수집 항목").
  * 여기서 실패해도 회의록은 이미 저장됐으므로 잡을 실패로 만들지 않는다.
  */
-const applyAudioRetention = async ({ meetingId }: { meetingId: string }) => {
+const applyAudioRetention = async ({
+  meetingId,
+  audioPath
+}: {
+  meetingId: string
+  audioPath: string
+}) => {
+  if (await registerRecordingUpload({ meetingId, audioPath })) return
   if (getAppSettings().isAudioKept) return
 
   try {
@@ -106,24 +129,45 @@ const processMeeting = async (meetingId: string) => {
   const audioPath = findAudioPath({ meetingId })
   if (!audioPath) throw new Error(t().main.pipeline.audioFileMissing)
 
+  const isReprocess = listUtterances({ meetingId }).length > 0
+  // 잡이 시작할 때 한 번 읽는다. 진행 중인 잡의 스레드는 바꿀 수 없다
+  const isQuiet = getAppSettings().isQuietProcessing
+  const speakerCount = findMeeting({ meetingId })?.speakerCount
+  const timer = createStageTimer()
+  const startedAt = Date.now()
+  const reportTimed = ({ stage, percent }: { stage: PipelineStage; percent: number }) => {
+    timer.mark({ stage, percent })
+    report({ meetingId, stage, percent })
+  }
+
   updateMeetingStatus({ meetingId, status: 'processing' })
   notifyMeetingsChanged()
   const utterances = await runPipeline({
     audioPath,
-    speakerCount: findMeeting({ meetingId })?.speakerCount,
-    // 잡이 시작할 때 한 번 읽는다. 진행 중인 잡의 스레드는 바꿀 수 없다
-    isQuiet: getAppSettings().isQuietProcessing,
-    onProgress: ({ stage, percent }) => report({ meetingId, stage, percent })
+    speakerCount,
+    isQuiet,
+    onProgress: reportTimed
   })
 
-  report({ meetingId, stage: 'save', percent: 0 })
+  reportTimed({ stage: 'save', percent: 0 })
   saveTranscript({ meetingId, utterances })
   updateMeetingStatus({ meetingId, status: 'done' })
-  report({ meetingId, stage: 'done', percent: DONE_PERCENT })
+  reportTimed({ stage: 'done', percent: DONE_PERCENT })
   notifyMeetingsChanged()
   info(`회의 ${meetingId} 처리 완료 (발화 ${utterances.length}개)`)
 
-  await applyAudioRetention({ meetingId })
+  trackPipelineCompleted({
+    meetingId,
+    startedAt,
+    durations: timer.durations(),
+    isQuiet,
+    isReprocess,
+    speakerCount,
+    utterances
+  })
+  trackMeetingSnapshot({ meetingId })
+
+  await applyAudioRetention({ meetingId, audioPath })
   await scheduleAutoRefine({ meetingId })
 }
 
@@ -131,6 +175,7 @@ const summarizeMeeting = async (meetingId: string) => {
   const transcript = buildTranscriptText({ meetingId })
   if (!transcript.trim()) throw new Error(t().main.summary.nothingToSummarize)
 
+  const startedAt = Date.now()
   const summary = await runSummary({
     meetingId,
     transcript,
@@ -140,6 +185,16 @@ const summarizeMeeting = async (meetingId: string) => {
   updateMeetingSummary({ meetingId, summary })
   reportSummary({ meetingId, stage: 'done', percent: DONE_PERCENT, summary })
   info(`회의 ${meetingId} 요약 완료 (${summary.length}자)`)
+  track({
+    name: 'summary_completed',
+    props: {
+      meetingId,
+      provider: getLlmProvider(),
+      elapsedMs: Date.now() - startedAt,
+      summaryChars: summary.length
+    }
+  })
+  trackMeetingSnapshot({ meetingId })
 }
 
 const globalGlossary = () => normalizeGlossaryTerms(getGlossarySettings().terms)
@@ -185,6 +240,7 @@ const refineMeeting = async (meetingId: string) => {
   const sources = listUtterances({ meetingId }).map(({ id, text }) => ({ id, text }))
   if (!sources.length) throw new Error(t().main.refine.nothingToRefine)
 
+  const startedAt = Date.now()
   const client = await createLlmClient()
   const params = { client, meetingId, sources, glossary: globalGlossary() }
   const { texts, pairs } =
@@ -198,6 +254,18 @@ const refineMeeting = async (meetingId: string) => {
   applyRefineResult({ meetingId, texts, appliedPairs: pairs, refinedAt: Date.now() })
   reportRefine({ meetingId, stage: 'done', percent: DONE_PERCENT })
   info(`회의 ${meetingId} 교정 완료 (발화 ${texts.length}개, 쌍 ${pairs.length}개 반영)`)
+  track({
+    name: 'refine_completed',
+    props: {
+      meetingId,
+      provider: client.provider,
+      mode: client.provider === 'local' ? 'term' : 'sentence',
+      elapsedMs: Date.now() - startedAt,
+      changedCount: texts.length,
+      pairCount: pairs.length
+    }
+  })
+  trackMeetingSnapshot({ meetingId })
 }
 
 /** 자동 교정을 건너뛸 이유. 없으면 null. 로컬은 용어 사전, 외부는 자동 교정 스위치가 필요하다 */
@@ -236,6 +304,11 @@ const scheduleAutoRefine = async ({ meetingId }: { meetingId: string }) => {
  * (references/architecture.md).
  */
 const failJob = ({ kind, meetingId }: MeetingJob, message: string) => {
+  track({
+    name: 'job_failed',
+    props: { meetingId, job: kind, stage: lastStages.get(meetingId) ?? 'unknown', message }
+  })
+
   if (kind === 'summary') {
     logError(`회의 ${meetingId} 요약 실패: ${message}`)
     reportSummary({ meetingId, stage: 'error', percent: 0, errorMessage: message })
@@ -251,6 +324,10 @@ const failJob = ({ kind, meetingId }: MeetingJob, message: string) => {
   updateMeetingStatus({ meetingId, status: 'error', errorMessage: message })
   report({ meetingId, stage: 'error', percent: 0 })
   notifyMeetingsChanged()
+  trackMeetingSnapshot({ meetingId })
+  // 실패한 녹음도 원인 분석용으로 올린다. 원본은 재시도용으로 어차피 남는다
+  const audioPath = findAudioPath({ meetingId })
+  if (audioPath) void registerRecordingUpload({ meetingId, audioPath })
 }
 
 const runMeetingJob = ({ kind, meetingId }: MeetingJob) => {
@@ -275,8 +352,10 @@ const drain = async () => {
 
     try {
       await runMeetingJob(job)
+      lastStages.delete(job.meetingId)
     } catch (caught) {
       failJob(job, messageOf(caught))
+      lastStages.delete(job.meetingId)
     }
   }
 

@@ -23,8 +23,8 @@ import styles from './index.module.css'
 const WAVEFORM_BAR_COUNT = 48
 
 /**
- * 메인 창의 녹음 화면. 오디오 그래프는 위젯 패널이 들고 있으므로 여기서는 명령을 보내고
- * 상태를 구독만 한다 (references/architecture.md의 "녹음 위젯 패널").
+ * 메인 창의 녹음 화면. 오디오 그래프는 녹음 호스트 창이 들고 있으므로 여기서는 명령을 보내고
+ * 상태를 구독만 한다 (references/architecture.md의 "녹음 호스트 창 · 메뉴바 · 전역 단축키").
  * 상태가 바뀌어도 요소가 움직이지 않도록 자리를 고정해 두고 내용만 바꾼다 ("화면별 구성" > 녹음).
  */
 export default function RecorderSection() {
@@ -85,11 +85,7 @@ export default function RecorderSection() {
   const renderControls = () => {
     if (!isRecording) {
       return (
-        <Button
-          variant="accent"
-          className={styles.controlButton}
-          onClick={() => handleControl('start')}
-        >
+        <Button className={styles.controlButton} onClick={() => handleControl('start')}>
           <span className={styles.startIcon} aria-hidden="true" />
           {t.recorder.start}
         </Button>
@@ -158,14 +154,14 @@ export default function RecorderSection() {
                 <br />
                 {settings ? (
                   <>
-                    {t.recorder.widgetHintPrefix}
+                    {t.recorder.shortcutHintPrefix}
                     <kbd className={styles.key}>
                       {formatAccelerator(settings.recordingShortcut)}
                     </kbd>
-                    {t.recorder.widgetHintSuffix}
+                    {t.recorder.shortcutHintSuffix}
                   </>
                 ) : (
-                  t.recorder.widgetHintPlain
+                  t.recorder.shortcutHintPlain
                 )}
               </p>
             )}

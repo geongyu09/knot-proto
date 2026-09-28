@@ -1,6 +1,11 @@
-/* 데스크탑 창 구조 전용 치수. 공용 토큰은 @meeting-stt/design/base.css */
+/* 데스크탑 창 구조 전용 치수. 공용 토큰은 @meeting-stt/design/base.css (references/architecture.md "메인 창 레이아웃") */
 :root {
-  --sidebar-width: 272px;
-  --topbar-height: 52px;
+  --gnb-top: 24px;
+  --gnb-height: 44px;
+  /* 신호등(약 70px)을 피한다. knot은 웹이라 24px이다 */
+  --gnb-inset-left: 88px;
+  /* 독 60 + 위아래 24 */
+  --dock-zone: 108px;
+  --sidebar-width: 240px;
   --rail-width: 300px;
 }

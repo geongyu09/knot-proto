@@ -32,13 +32,11 @@ import {
 import SettingsSection from './index'
 
 const AUDIO_LABEL = '원본 녹음 파일 보관'
+/** 팀 테스트 빌드는 업데이트 스위치를 숨긴다 (references/telemetry.md "빌드 분리") */
 const UPDATE_LABEL = '시작할 때 업데이트 확인'
 const QUIET_LABEL = '조용히 처리'
-const FADE_LABEL = '위젯 반투명'
-const OPACITY_LABEL = /포커스가 없을 때 불투명도/
 const RECORDING_SHORTCUT_BUTTON = '녹음 시작·정지 변경'
 const LOCALE_LABEL = 'UI 언어'
-const THEME_LABEL = '화면 테마'
 
 /** 설정 행의 켜기/끄기는 제목을 이름으로 갖는 role="switch" 버튼이다 */
 const findSwitch = (name: string) => screen.findByRole('switch', { name })
@@ -62,14 +60,9 @@ const DEFAULT_SETTINGS = {
   isAudioKept: false,
   isUpdateCheckEnabled: false,
   isQuietProcessing: false,
-  isWidgetEnabled: true,
-  isWidgetFadeEnabled: true,
-  widgetFadeOpacity: 0.55,
   recordingShortcut: 'Alt+Command+R',
-  widgetShortcut: 'Alt+Command+W',
   inputDevice: null,
   locale: 'ko' as const,
-  theme: 'system' as const,
   isAutoRefineExternal: false
 }
 
@@ -141,24 +134,11 @@ describe('SettingsSection', () => {
     expect(isOn(await findSwitch(AUDIO_LABEL))).toBe(true)
   })
 
-  it('업데이트 확인을 켜면 나머지 설정을 유지한 채 저장한다', async () => {
-    const user = userEvent.setup()
-    vi.mocked(getSettingsApi).mockResolvedValue({ ...DEFAULT_SETTINGS, isAudioKept: true })
-    vi.mocked(updateSettingsApi).mockResolvedValue({
-      ...DEFAULT_SETTINGS,
-      isAudioKept: true,
-      isUpdateCheckEnabled: true
-    })
+  it('업데이트 자리에 팀 테스트 빌드 안내를 보여 주고 업데이트 스위치는 두지 않는다', async () => {
     render(<SettingsSection />)
 
-    await user.click(await findSwitch(UPDATE_LABEL))
-
-    expect(updateSettingsApi).toHaveBeenCalledWith({
-      ...DEFAULT_SETTINGS,
-      isAudioKept: true,
-      isUpdateCheckEnabled: true
-    })
-    expect(isOn(await findSwitch(UPDATE_LABEL))).toBe(true)
+    expect(await screen.findByText(/팀 테스트 빌드입니다/)).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: UPDATE_LABEL })).toBeNull()
   })
 
   it('조용히 처리를 켜면 느려진다는 안내와 함께 저장한다', async () => {
@@ -187,43 +167,6 @@ describe('SettingsSection', () => {
 
     expect(await screen.findByRole('alert')).toBeTruthy()
     expect(screen.getByText('설정을 저장하지 못했습니다')).toBeTruthy()
-  })
-
-  it('위젯 반투명을 끄면 불투명도 슬라이더를 막는다', async () => {
-    const user = userEvent.setup()
-    vi.mocked(getSettingsApi).mockResolvedValue(DEFAULT_SETTINGS)
-    vi.mocked(updateSettingsApi).mockResolvedValue({
-      ...DEFAULT_SETTINGS,
-      isWidgetFadeEnabled: false
-    })
-    render(<SettingsSection />)
-
-    const slider = (await screen.findByLabelText(OPACITY_LABEL)) as HTMLInputElement
-    expect(slider.disabled).toBe(false)
-
-    await user.click(await findSwitch(FADE_LABEL))
-
-    expect(updateSettingsApi).toHaveBeenCalledWith({
-      ...DEFAULT_SETTINGS,
-      isWidgetFadeEnabled: false
-    })
-    expect(((await screen.findByLabelText(OPACITY_LABEL)) as HTMLInputElement).disabled).toBe(true)
-  })
-
-  it('불투명도 슬라이더를 움직이면 값을 저장한다', async () => {
-    vi.mocked(getSettingsApi).mockResolvedValue(DEFAULT_SETTINGS)
-    vi.mocked(updateSettingsApi).mockResolvedValue({ ...DEFAULT_SETTINGS, widgetFadeOpacity: 0.3 })
-    render(<SettingsSection />)
-
-    fireEvent.change(await screen.findByLabelText(OPACITY_LABEL), { target: { value: '0.3' } })
-
-    await waitFor(() =>
-      expect(updateSettingsApi).toHaveBeenCalledWith({
-        ...DEFAULT_SETTINGS,
-        widgetFadeOpacity: 0.3
-      })
-    )
-    expect(await screen.findByText('30%')).toBeTruthy()
   })
 
   it('단축키를 입력받는 동안 전역 단축키를 풀고, 누른 조합을 저장한다', async () => {
@@ -306,24 +249,10 @@ describe('SettingsSection', () => {
     const regions = screen
       .getAllByRole('region')
       .map((region) => region.getAttribute('aria-label') ?? region.querySelector('h2')?.textContent)
-    expect(regions).toEqual([
-      '마이크',
-      '녹음·처리',
-      '녹음 위젯',
-      '단축키',
-      '음성 인식 모델',
-      '업데이트',
-      '화면',
-      '언어'
-    ])
+    expect(regions).toEqual(['마이크', '녹음·처리', '단축키', '음성 인식 모델', '업데이트', '언어'])
     expect(
       within(screen.getByRole('region', { name: '녹음·처리' })).getByRole('switch', {
         name: QUIET_LABEL
-      })
-    ).toBeTruthy()
-    expect(
-      within(screen.getByRole('region', { name: '녹음 위젯' })).getByRole('switch', {
-        name: FADE_LABEL
       })
     ).toBeTruthy()
   })
@@ -434,26 +363,6 @@ describe('SettingsSection', () => {
     expect(
       ((await screen.findByRole('combobox', { name: LOCALE_LABEL })) as HTMLSelectElement).value
     ).toBe('en')
-  })
-
-  it('화면 테마를 다크로 바꾸면 theme을 저장한다', async () => {
-    const user = userEvent.setup()
-    vi.mocked(getSettingsApi).mockResolvedValue(DEFAULT_SETTINGS)
-    vi.mocked(updateSettingsApi).mockResolvedValue({ ...DEFAULT_SETTINGS, theme: 'dark' })
-    render(<SettingsSection />)
-
-    const select = (await screen.findByRole('combobox', {
-      name: THEME_LABEL
-    })) as HTMLSelectElement
-    expect(select.value).toBe('system')
-    expect(screen.getByRole('option', { name: '시스템 설정 따르기' })).toBeTruthy()
-
-    await user.selectOptions(select, 'dark')
-
-    expect(updateSettingsApi).toHaveBeenCalledWith({ ...DEFAULT_SETTINGS, theme: 'dark' })
-    expect(
-      ((await screen.findByRole('combobox', { name: THEME_LABEL })) as HTMLSelectElement).value
-    ).toBe('dark')
   })
 
   it('설정을 못 불러와도 children은 보여준다', async () => {

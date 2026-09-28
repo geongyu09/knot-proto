@@ -45,7 +45,7 @@ const useModelStatus = () => {
     fetchStatus()
   }, [fetchStatus])
 
-  // 다른 창이 받은 모델도 반영한다. 위젯 창은 언마운트되지 않아 마운트 때 읽은 값만으로는 부족하다
+  // 다른 창이 받은 모델도 반영한다. 녹음 호스트 창은 언마운트되지 않아 마운트 때 읽은 값만으로는 부족하다
   useEffect(() => onModelsChanged(fetchStatus), [fetchStatus])
 
   useEffect(
