@@ -49,13 +49,9 @@ describe('디자인 토큰', () => {
     expect(baseCss).toContain(`${token}:`)
   })
 
-  it('색 토큰마다 다크 값이 있다 (반쪽짜리 다크 토큰은 새 화면을 다크에서 깨뜨린다)', () => {
-    const [lightBlock, darkBlock = ''] = baseCss.split('@media (prefers-color-scheme: dark)')
-    const colorTokensOf = (css: string) => new Set(css.match(/--color-[\w-]+(?=:)/g) ?? [])
-
-    expect([...colorTokensOf(darkBlock)].toSorted()).toEqual(
-      [...colorTokensOf(lightBlock)].toSorted()
-    )
+  it('다크 모드 블록이 없다 (다크 모드는 없다 — 2026-09-28 사용자 결정, SKILL.md 1절 "비주얼 디자인")', () => {
+    expect(baseCss).not.toContain('prefers-color-scheme: dark')
+    expect(baseCss).not.toContain('data-theme')
   })
 })
 
