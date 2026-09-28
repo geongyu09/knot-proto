@@ -117,6 +117,49 @@ CREATE TABLE IF NOT EXISTS settings (
 - 교정의 근거는 전역 용어 사전(`settings`의 `glossary.terms`)뿐이다. 회의별 용어 컬럼은 두지 않는다 (2026-09-25 사용자 결정).
   외부 공급자의 문장 교정은 용어 사전 없이도 돈다 (2026-09-28).
 
+## 결정 문서 (`test/usage-analytics` 브랜치, 2026-09-28)
+
+설계는 `decisions.md`. **마이그레이션 7**에서 만든다 (6은 사용 정보 outbox).
+
+```sql
+ALTER TABLE meetings ADD COLUMN decision_state TEXT NOT NULL DEFAULT 'none';  -- 'none' | 'pending' | 'done' | 'error'
+ALTER TABLE meetings ADD COLUMN decision_error TEXT;                          -- 'error'일 때 한국어 안내
+ALTER TABLE meetings ADD COLUMN decisions_extracted_at INTEGER;               -- 마지막 성공 시각 (epoch ms)
+
+CREATE TABLE IF NOT EXISTS decisions (
+  id                 TEXT PRIMARY KEY,                -- uuid
+  meeting_id         TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+  ord                INTEGER NOT NULL,                -- 회의 안 순서 (LLM이 낸 순서)
+  type_id            TEXT,                            -- settings decisions.types의 id. NULL이거나 목록에 없으면 미분류. FK 없음
+  title              TEXT NOT NULL,
+  decision           TEXT NOT NULL,
+  background         TEXT NOT NULL DEFAULT '',
+  alternatives       TEXT NOT NULL DEFAULT '[]',      -- JSON { option, reason }[]
+  action_items       TEXT NOT NULL DEFAULT '[]',      -- JSON { task, ownerLabel: string | null, ownerText: string, due: string }[]
+  proposer_labels    TEXT NOT NULL DEFAULT '[]',      -- JSON string[] (speakers.label)
+  participant_labels TEXT NOT NULL DEFAULT '[]',      -- JSON string[]
+  evidence           TEXT NOT NULL,                   -- JSON { startSec, endSec }[] — 비어 있으면 저장하지 않는다
+  created_at         INTEGER NOT NULL                 -- epoch ms (추출 시각)
+);
+CREATE INDEX IF NOT EXISTS idx_decisions_meeting ON decisions(meeting_id, ord);
+```
+
+| 동작 | SQL |
+| --- | --- |
+| 추출 시작 | `UPDATE meetings SET decision_state = 'pending', decision_error = NULL WHERE id = ?` |
+| 추출 성공 | 트랜잭션: `DELETE FROM decisions WHERE meeting_id = ?` + 새 행 `INSERT` + `UPDATE meetings SET decision_state = 'done', decisions_extracted_at = ? WHERE id = ?` |
+| 추출 실패 | `UPDATE meetings SET decision_state = 'error', decision_error = ? WHERE id = ?` (기존 `decisions` 행은 그대로) |
+| 앱 시작 복구 | `UPDATE meetings SET decision_state = 'error', decision_error = ? WHERE decision_state = 'pending'` |
+| 다시 인식 성공 저장 | 기존 트랜잭션에 `DELETE FROM decisions WHERE meeting_id = ?` + `decision_state = 'pending'`을 더하고 추출 잡을 넣는다 |
+| 사이드 목록 | `SELECT d.id, d.meeting_id, d.type_id, d.title, m.title, m.created_at FROM decisions d JOIN meetings m ON m.id = d.meeting_id ORDER BY m.created_at DESC, d.ord` (묶음은 renderer가 타입 순서로) |
+
+- `type_id`에 FK를 걸지 않는 이유: 타입은 `settings` JSON이라 참조할 테이블이 없고, 타입을 지워도 문서 행은 남아 미분류로 보여야 한다.
+- 사람 필드는 **라벨**로 저장하고 표시 이름은 읽을 때 `speakers`에서 푼다 — 화자 이름 변경·병합이 문서에 그대로 반영된다.
+  화자 병합(A→B) 트랜잭션은 `decisions`의 JSON 라벨 배열에서도 A를 B로 바꾼다(중복 제거). 이걸 빼면 병합된 화자가 "알 수 없는 화자"로 남는다.
+- 근거는 발화 id가 아니라 시각 구간이다. 이유는 `decisions.md` "코드 검증".
+- JSON 컬럼이 깨져 있으면 빈 배열로 읽는다(`evidence`가 깨지면 근거 없이 보여 준다). 요약·교정 결과와 같은 규칙.
+- 기존 회의는 마이그레이션 후 `decision_state = 'none'`이다. 자동으로 추출하지 않는다.
+
 ## settings 테이블 키
 
 `settings`는 `key` → JSON 문자열 `value`다. 앱이 읽을 때는 `src/shared/types.ts`의 `AppSettings`로 모아서 다룬다.
@@ -173,6 +216,13 @@ export interface AppSettings {
     terms: string[]
   }
   ```
+
+- **결정 타입(`decisions.types`)도 `AppSettings` 밖이다** (`decisions.md` "결정 타입"). 자기 채널 `decisionTypes:get`/`decisionTypes:update`로 읽고 쓴다.
+
+  | 키 | 타입 | 기본값 | 뜻 |
+  | --- | --- | --- | --- |
+  | `decisions.types` | `DecisionType[]` JSON | 키가 없으면 고정 id 기본 6개(`decisions.md`) | `{ id, name(≤20자), description(≤80자) }`, 배열 순서 = 사이드 패널 묶음 순서, 최대 20개, 이름 중복 금지 |
+
 
   저장할 때 main이 줄 앞뒤 공백을 자르고 빈 줄·중복 용어(`=` 앞부분 기준, 대소문자 무시)를 뺀다. 한도를 넘으면 거절한다.
 - **LLM 공급자(`llm.provider`, `llm.claudeApiKey`, `llm.openaiApiKey`, `llm.openaiModel`)도 `AppSettings`에 넣지 않는다** (2026-09-24). 키 저장·CLI 탐색·연결 확인이 붙은
@@ -232,6 +282,27 @@ export interface Meeting {
   status: MeetingStatus; errorMessage?: string; summary?: string
   speakerCount?: number   // 녹음 정지 시 입력한 참석자 수. 없으면 임계값 폴백으로 처리된 회의
   hasAudio: boolean       // 원본 WAV 경로가 남아 있는지 (audio_path IS NOT NULL). 재생·내보내기·다시 인식 가능 여부
+  decisionState: DecisionState   // 결정 문서 추출 상태 (2026-09-28, decisions.md)
+  decisionCount: number          // 저장된 결정 문서 수
+  decisionError?: string
+}
+
+// 결정 문서 (2026-09-28, decisions.md)
+export type DecisionState = 'none' | 'pending' | 'done' | 'error'
+export interface DecisionType { id: string; name: string; description: string }
+export interface DecisionActionItem { task: string; ownerLabel: string | null; ownerText: string; due: string }
+export interface Decision {
+  id: string; meetingId: string; ord: number; typeId: string | null
+  title: string; decision: string; background: string
+  alternatives: { option: string; reason: string }[]
+  actionItems: DecisionActionItem[]
+  proposerLabels: string[]; participantLabels: string[]
+  evidence: { startSec: number; endSec: number }[]
+  createdAt: number
+}
+export interface DecisionListItem {
+  id: string; meetingId: string; typeId: string | null; title: string
+  meetingTitle: string; meetingCreatedAt: number
 }
 
 export interface Utterance {

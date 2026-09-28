@@ -33,7 +33,7 @@ STT·화자 분리·요약 파이프라인 자체는 그대로 로컬이다 — 
 | 파이프라인 성능 | 회의 길이, 단계별 처리 시간(정규화·STT·화자 분리·병합·교정·요약), 모델, 스레드 수, 조용히 처리 여부, 실패 단계 | 자체 서버 + PostHog |
 | 오류·크래시 | spawn 실패·종료 코드, stderr 끝부분, 예외 스택, 재군집 폴백, renderer 크래시, `status='error'` 잡 | 자체 서버 + Sentry |
 | 설정·환경 | 앱 버전, macOS 버전, 칩·성능 코어 수·메모리, LLM 공급자, UI 언어, 테마, 녹음본 보관 여부 | 자체 서버 + PostHog |
-| 회의 내용 | 발화(화자 라벨·시각·텍스트, 교정 전 원문 포함), 요약, 화자 표시 이름, 용어 사전, 녹음 WAV | **자체 서버만** |
+| 회의 내용 | 발화(화자 라벨·시각·텍스트, 교정 전 원문 포함), 요약, **결정 문서·결정 타입**(2026-09-28, `decisions.md`), 화자 표시 이름, 용어 사전, 녹음 WAV | **자체 서버만** |
 
 - **회의 내용은 외부 분석 서비스로 보내지 않는다.** 분석 SaaS는 이벤트용이라 긴 텍스트·오디오를 받을 곳이 아니고,
   제3자에게 회의 원문이 넘어가는 경로를 하나 줄인다. 외부로는 이벤트 이름·수치·열거형 값만 간다.
@@ -170,14 +170,42 @@ electron-vite의 `MAIN_VITE_*` 환경 변수(빌드 시 `import.meta.env`로 치
   - 같은 회의 녹음에 조각이 동시에 오면 뒤에 온 것은 `409 { receivedBytes }`로 돌려보낸다.
     `Content-Range`의 `total`이 처음 받은 값과 다르면(파일이 바뀜) 처음부터 다시 받는다 — `start`가 0이면 기존 파일을 버리고 새로 받고(완료된 녹음도 교체),
     0이 아니면 `409 { receivedBytes: 0 }`으로 0부터 보내게 한다. 데스크탑의 "409면 그 위치부터 다시" 규칙과 맞물려 무한 반복 없이 풀린다.
-  - 서버는 받은 데이터를 앱으로 돌려주지 않는다 (조회 API 없음). 조회는 SQLite 파일을 직접 연다.
+  - 서버는 받은 데이터를 **앱으로** 돌려주지 않는다 (앱용 조회 API 없음). 사람이 보는 조회는 아래 "관리자 페이지"와 `pnpm collector:inspect`로 한다.
+
+## 관리자 페이지 (`/admin`, 2026-09-28 사용자 요청)
+
+수집 서버가 받은 이벤트·회의 스냅샷·녹음을 브라우저로 확인하는 **읽기 전용** 웹 페이지. 수집 서버 프로세스가 같은 DB를 읽어 직접 그린다.
+
+| 항목 | 결정 | 이유 |
+| --- | --- | --- |
+| 위치 | 수집 서버의 `/admin/*` 경로 (같은 Hono 앱, 같은 포트) | 별도 앱·별도 배포가 없다. Caddy·compose 설정을 바꾸지 않고 `https://<도메인>/admin`으로 열린다 |
+| 화면 방식 | **서버 렌더링 HTML** (`hono/jsx`), 클라이언트 JS 없음. 필터·페이지는 쿼리 문자열 | 클라이언트 번들 빌드가 없어 Docker 이미지가 번들 한 파일 그대로다. 페이지 수가 적고 전부 조회라 상호작용이 필요 없다 |
+| 인증 | **HTTP Basic** (사용자 이름 `admin`, 비밀번호 `COLLECTOR_ADMIN_PASSWORD`, 16자 이상). 값이 없으면 `/admin` 전체가 `404` — 꺼진 상태가 기본 | 팀 토큰은 데스크탑 빌드 안에 들어 있어 빌드를 가진 사람이면 꺼낼 수 있다. 회의 원문을 보는 권한은 팀 토큰과 따로 둔다. 로그인 화면·세션 없이 브라우저 기본 창으로 끝낸다 |
+| 쓰기 | **없음** (삭제·수정 버튼 없음) | 보관 기간·삭제 절차가 미결이다. 읽기만 하므로 CSRF 대상도 없다 |
+| 응답 헤더 | `Cache-Control: no-store`, `X-Robots-Tag: noindex`, CSP `default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'` | 회의 원문이 브라우저·프록시 캐시에 남지 않게 한다. 인라인 style은 막대 너비처럼 런타임 계산값에만 쓴다 |
+| 스타일 | `@meeting-stt/design/base.css` 토큰을 `/admin/assets/base.css`로 그대로 내보내고, 관리자 전용 규칙은 그 변수만 쓴다. 파일 위치는 개발에서는 패키지에서 찾고, 이미지에서는 `COLLECTOR_DESIGN_CSS`(Dockerfile이 복사) | 색·간격을 앱과 한 곳에서 관리한다. 글꼴은 동봉하지 않고 시스템 글꼴로 대체한다 |
+
+화면:
+
+| 경로 | 무엇 |
+| --- | --- |
+| `/admin` | 개요 — 총계(이벤트·설치·회의·녹음·오류), 최근 14일 일별 이벤트 수, 이벤트 이름별 개수, 최근 오류 |
+| `/admin/events` | 이벤트 목록. 팀·설치·이름·분류로 거르고 100개씩 넘긴다. props는 JSON 그대로 |
+| `/admin/installs` | 설치별 팀·첫/마지막 이벤트·이벤트 수·회의 수와 마지막 `environment` 이벤트(앱 버전·OS·칩·모델·LLM 공급자) |
+| `/admin/meetings` | 회의 스냅샷 목록 (팀·설치 필터, 삭제 표시 포함) |
+| `/admin/meetings/{teamId}/{installId}/{meetingId}` | 회의 상세 — 메타, 요약, 녹음 재생(`<audio>`), 화자 표시 이름을 적용한 발화(교정 전 원문 병기), 교정 쌍, 용어 사전, 그 회의의 이벤트 |
+| `…/{meetingId}/snapshot.json`, `…/{meetingId}/recording.wav` | 스냅샷 원본 JSON 내려받기, 완료된 녹음 스트리밍(`Range` 지원) |
+
+- 스모크 설치 id(`00000000-0000-4000-8000-000000000000`)는 거르지 않고 목록에 "스모크" 표시를 붙인다.
+- 경로의 `teamId`·`installId`·`meetingId`는 저장 때와 같은 `PATH_SEGMENT_PATTERN`을 통과해야 한다 — 녹음 파일 경로를 만들기 때문이다.
+- 개발 환경 `pnpm dev:stack`은 관리자 비밀번호도 실행마다 만들어 로그에 주소와 함께 찍는다.
 
 ## 환경 (개발·배포, 2026-09-28 결정)
 
 | 환경 | 수집 서버 | 데스크탑 | 확인 방법 |
 | --- | --- | --- | --- |
 | **개발** | `pnpm dev:stack` 하나로 로컬 서버(`tsx watch`, `127.0.0.1:8787`, 데이터 `apps/collector/data/dev`)와 데스크탑(`electron-vite dev`)을 함께 띄운다 | 스크립트가 `MAIN_VITE_COLLECTOR_URL`·`MAIN_VITE_COLLECTOR_TEAM_TOKEN`을 **프로세스 환경 변수로 주입**한다 (Vite `loadEnv`가 process.env의 `MAIN_VITE_*`를 합친다) | 한 터미널에 `[collector]`·`[desktop]` 접두어로 로그가 섞여 나오고, 서버는 받을 때마다 "이벤트 n개 저장"처럼 한 줄 남긴다. 받은 내용은 `pnpm collector:inspect` |
-| **배포** | Docker 이미지(`apps/collector/Dockerfile`, esbuild 번들 한 파일 + `node:22-alpine`, 런타임 `node_modules` 없음) + `apps/collector/deploy/compose.yaml`(수집 서버 + **Caddy** 자동 HTTPS). 호스트에 Docker만 있으면 된다 | `apps/desktop/.env.production.local`(git 제외)에 배포 주소·팀 토큰을 적고 `pnpm build:mac` | `pnpm collector:smoke <주소>` — 이벤트·스냅샷·녹음 두 조각을 보내 응답을 확인 |
+| **배포** | Docker 이미지(`apps/collector/Dockerfile`, esbuild 번들 한 파일 + `node:22-alpine`, 런타임 `node_modules` 없음) + `apps/collector/deploy/compose.yaml`(수집 서버 + **Caddy** 자동 HTTPS). 호스트에 Docker만 있으면 된다 | `apps/desktop/.env.production.local`(git 제외)에 배포 주소·팀 토큰을 적고 `pnpm build:mac` | `pnpm collector:smoke <주소>` — 이벤트·스냅샷·녹음 두 조각을 보내 응답을 확인. 받은 내용은 `https://<도메인>/admin` (`COLLECTOR_ADMIN_PASSWORD` 설정 시) |
 
 - **개발 팀 토큰은 `dev:stack`이 실행마다 무작위로 만든다.** 저장소에 토큰 파일을 두지 않고, 서버·데스크탑 양쪽에 같은 값을 넣는다. 팀 id는 `dev`.
 - 이 브랜치 데스크탑은 `productName`이 `meeting-stt-team`이라 개발 실행도 `~/Library/Application Support/meeting-stt-team`을 쓴다 — 공개 빌드의 회의 DB와 섞이지 않는다.
@@ -191,4 +219,3 @@ electron-vite의 `MAIN_VITE_*` 환경 변수(빌드 시 `import.meta.env`로 치
 
 - 수집 서버를 올릴 호스트와 도메인. 배포 형태(Docker + Caddy)는 위 "환경" 절에서 정했다.
 - 서버 쪽 보관 기간과 팀 탈퇴 시 삭제 절차.
-- 수집 서버에 대시보드(조회 화면)를 둘지, 저장만 하고 조회는 다른 도구로 할지.

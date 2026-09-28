@@ -138,6 +138,7 @@
 - **요약 모델(2.4GB)은 필수 모델이 아니다.** 없으면 요약만 막히고 STT는 그대로 돌아야 한다. spawn 전에 실행 파일·모델 존재를 확인하고 한국어로 안내만 하고 멈춘다.
 - **요약 실패가 회의 상태를 덮어쓰면 안 된다.** `meetings.status`는 파이프라인 소유다. 요약 잡은 `summary:progress`의 `'error'`로만 알린다.
 - **`libllama-server-impl.dylib`은 `llama-server`를 쓰지 않아도 빼면 안 된다.** `llama-cli`가 직접 링크하고 있어 없으면 dyld가 실행을 거부한다. dylib은 실행 파일과 같은 폴더에 둔다 (rpath가 `@loader_path`).
+- **동봉 빌드의 `-j`/`-jf`(JSON 스키마 제약)는 쓰지 않는다** (2026-09-28, 결정 추출 D0). `{}` 스키마조차 `common_sampler_init: error initializing grammar sampler` → "Failed to initialize samplers"로 실패하고, **종료 코드 0으로 빈 답**을 낸다 — 종료 코드만 보면 성공으로 보인다. 같은 스키마가 만든 문법을 `--grammar-file`로 주면 동작하므로 형식 강제는 GBNF로 한다.
 - 컨텍스트를 크게 잡으면 KV 캐시가 그만큼 커진다 (Qwen3-4B는 토큰당 약 144KB). 8192토큰이면 1.2GB 수준이라 저사양에서도 뜬다.
 
 ## 녹음 호스트 창 · 메뉴바 · 전역 단축키 (Phase 5-3)

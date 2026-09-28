@@ -106,7 +106,8 @@ src/
         │   ├── Onboarding/index.tsx
         │   ├── Home/index.tsx
         │   ├── Record/index.tsx
-        │   └── MeetingDetail/index.tsx
+        │   ├── MeetingDetail/index.tsx
+        │   └── DecisionDetail/index.tsx     # 결정 문서 (test/usage-analytics 브랜치)
         │
         ├── modules/                     # 도메인 로직을 가진 컴포넌트
         │   ├── widgets/{domain}/AComponent/
@@ -175,6 +176,7 @@ src/
 | `glossary` | 전역 용어 사전 조회·저장·초안 생성 (api 래퍼 전용 도메인. 화면은 `setting/GlossarySection`) |
 | `llm` | LLM 공급자 상태 조회·공급자 저장·API 키 저장·연결 확인 (api 래퍼·`useLlmStatus` 훅. 화면은 `setting/LlmSection`) |
 | `refine` | 회의록 자동 교정 — 진행률 구독·수동 재실행·고친 쌍 목록 (api 래퍼·`useRefine` 훅·`features/refine/RefinePanel`·외부 공급자 자동 교정 스위치 `features/refine/AutoRefineToggle`. 결과 자체는 회의 상세의 일부라 `useMeeting`이 든다) |
+| `decision` | 결정 문서 (test/usage-analytics 브랜치, `references/decisions.md`) — 문서 화면 `widgets/decision/DecisionDocumentSection`(페이지 `pages/DecisionDetail`이 원문 패널 `meeting/TranscriptSection variant="panel"`을 `renderLayout`으로 끼움)·회의 상세 레일 카드 `widgets/decision/MeetingDecisionsCard`·추출 진행률 `features/decision/DecisionProgress`, 훅 `shared/hooks/domain/decision/*`, api 래퍼 `shared/api/{decisions,decisionTypes}`. 사이드 패널 결정 탭은 `meeting/MeetingSidebarSection` 안, 타입 설정 화면은 `setting/DecisionTypesSection` |
 | `navigation` | 앱 셸 탐색 — 상단 GNB(알약 탭·목록 패널 토글·설정 버튼). 라우트 정의는 `shared/routes` (2026-09-28 knot 리디자인) |
 
 ## 레이어별 역할 (renderer)
