@@ -57,7 +57,12 @@ const snapshotSummary = (raw: unknown) => {
       speakers: snapshot.speakers?.length ?? 0
     }
   } catch (caught) {
-    return { title: `(스냅샷 JSON 파싱 실패: ${String(caught)})`, durationSec: 0, utterances: 0, speakers: 0 }
+    return {
+      title: `(스냅샷 JSON 파싱 실패: ${String(caught)})`,
+      durationSec: 0,
+      utterances: 0,
+      speakers: 0
+    }
   }
 }
 
@@ -87,7 +92,9 @@ const main = () => {
   printSection({
     title: '이벤트 이름별 개수',
     rows: db
-      .prepare('SELECT name, category, COUNT(*) AS count FROM events GROUP BY name ORDER BY count DESC')
+      .prepare(
+        'SELECT name, category, COUNT(*) AS count FROM events GROUP BY name ORDER BY count DESC'
+      )
       .all()
   })
 

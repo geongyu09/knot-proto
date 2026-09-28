@@ -37,17 +37,13 @@ export const createRecordingsRoute = ({ db, recordingsDir, now = Date.now }: Col
 
       const key = { teamId, installId, meetingId }
       const progress = getRecording({ db, ...key })
-      const receivedBytes = progress?.receivedBytes ?? 0
+      // 전체 크기가 바뀌었으면 다른 파일이다. 0부터 다시 받는다 (telemetry.md "수집 서버")
+      const isSizeChanged = progress !== null && progress.totalBytes !== range.total
+      const receivedBytes = isSizeChanged ? 0 : (progress?.receivedBytes ?? 0)
       const reply = (bytes: number, status: 200 | typeof OFFSET_MISMATCH_STATUS = 200) =>
         c.json<RecordingUploadResponse>({ receivedBytes: bytes }, status)
 
-      if (progress?.isComplete) return reply(progress.totalBytes)
-      if (progress && progress.totalBytes !== range.total) {
-        return c.json(
-          { error: '처음 올린 녹음과 전체 크기가 다릅니다', receivedBytes },
-          OFFSET_MISMATCH_STATUS
-        )
-      }
+      if (progress?.isComplete && !isSizeChanged) return reply(progress.totalBytes)
       const uploadKey = `${teamId}/${installId}/${meetingId}`
       if (uploadingKeys.has(uploadKey)) return reply(receivedBytes, OFFSET_MISMATCH_STATUS)
       if (range.start !== receivedBytes) return reply(receivedBytes, OFFSET_MISMATCH_STATUS)

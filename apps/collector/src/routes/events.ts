@@ -28,7 +28,9 @@ export const createEventsRoute = ({ db, now = Date.now }: CollectorDeps) =>
         receivedAt: now()
       })
       const names = [...new Set(batch.value.events.map((event) => event.name))].join(', ')
-      log.info(`[${teamId}] 이벤트 ${result.accepted}개 저장, 중복 ${result.duplicated}개 (${names})`)
+      log.info(
+        `[${teamId}] 이벤트 ${result.accepted}개 저장, 중복 ${result.duplicated}개 (${names})`
+      )
       return c.json(result)
     }
   )

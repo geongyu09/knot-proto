@@ -1,0 +1,35 @@
+# 수집 서버 배포 구성 (telemetry.md "환경"). 이 폴더에서:
+#   cp .env.example .env   # 도메인·팀 토큰 채우기
+#   docker compose up -d --build
+# 수집 서버는 밖에 포트를 열지 않고 Caddy만 80·443을 연다. Caddy가 인증서를 자동으로 받는다.
+services:
+  collector:
+    build:
+      context: ../../..
+      dockerfile: apps/collector/Dockerfile
+    image: meeting-stt-collector
+    restart: unless-stopped
+    environment:
+      COLLECTOR_TEAM_TOKENS: ${COLLECTOR_TEAM_TOKENS:?COLLECTOR_TEAM_TOKENS를 .env에 적어 주세요}
+    volumes:
+      - collector-data:/data
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - collector
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      COLLECTOR_DOMAIN: ${COLLECTOR_DOMAIN:?COLLECTOR_DOMAIN을 .env에 적어 주세요}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  collector-data:
+  caddy-data:
+  caddy-config:

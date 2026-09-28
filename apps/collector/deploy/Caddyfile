@@ -1,0 +1,5 @@
+# COLLECTOR_DOMAIN이 실제 도메인이면 Let's Encrypt 인증서를, localhost면 자체 서명 인증서를 쓴다
+{$COLLECTOR_DOMAIN} {
+	encode gzip
+	reverse_proxy collector:8787
+}

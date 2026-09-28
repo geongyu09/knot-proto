@@ -6,6 +6,9 @@
  */
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
+import { existsSync } from 'node:fs'
+import { mkdir, symlink } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
 
@@ -19,6 +22,12 @@ const HEALTH_POLL_MS = 300
 const HEALTH_TIMEOUT_MS = 30_000
 const SHUTDOWN_GRACE_MS = 5_000
 
+const APP_SUPPORT_DIR = path.join(homedir(), 'Library', 'Application Support')
+/** 이 브랜치 데스크탑의 productName. 공개 빌드(meeting-stt)와 userData가 갈라진다 */
+const TEAM_USER_DATA_DIR = path.join(APP_SUPPORT_DIR, 'meeting-stt-team')
+const PUBLIC_USER_DATA_DIR = path.join(APP_SUPPORT_DIR, 'meeting-stt')
+const MODELS_DIR_NAME = 'models'
+
 const ANSI_RESET = '\u001b[0m'
 const ANSI_CYAN = '\u001b[36m'
 const ANSI_MAGENTA = '\u001b[35m'
@@ -28,7 +37,8 @@ const collectorPort = Number(process.env.DEV_STACK_COLLECTOR_PORT) || DEFAULT_CO
 const collectorUrl = `http://${COLLECTOR_HOST}:${collectorPort}`
 const teamToken = randomBytes(TOKEN_BYTES).toString('hex')
 
-const say = (message: string) => process.stdout.write(`${ANSI_YELLOW}[stack]${ANSI_RESET} ${message}\n`)
+const say = (message: string) =>
+  process.stdout.write(`${ANSI_YELLOW}[stack]${ANSI_RESET} ${message}\n`)
 
 interface StartParams {
   label: string
@@ -48,7 +58,9 @@ const start = ({ label, color, filter, env }: StartParams) => {
   })
   const prefix = `${color}[${label}]${ANSI_RESET} `
   for (const stream of [child.stdout, child.stderr]) {
-    createInterface({ input: stream }).on('line', (line) => process.stdout.write(`${prefix}${line}\n`))
+    createInterface({ input: stream }).on('line', (line) =>
+      process.stdout.write(`${prefix}${line}\n`)
+    )
   }
   return child
 }
@@ -90,8 +102,21 @@ const waitForHealth = async () => {
   return false
 }
 
+/** 팀 userData에 모델이 없으면 공개 빌드가 받아 둔 모델을 링크해 온보딩 재다운로드를 건너뛴다 (telemetry.md "환경") */
+const linkDevModels = async () => {
+  const target = path.join(TEAM_USER_DATA_DIR, MODELS_DIR_NAME)
+  const source = path.join(PUBLIC_USER_DATA_DIR, MODELS_DIR_NAME)
+  if (existsSync(target) || !existsSync(source)) return
+  await mkdir(TEAM_USER_DATA_DIR, { recursive: true })
+  await symlink(source, target)
+  say(`모델 폴더 링크: ${target} → ${source}`)
+}
+
 const main = async () => {
-  say(`수집 서버 ${collectorUrl}, 팀 "${DEV_TEAM_ID}", 데이터 apps/collector/${DEV_DATA_DIR.slice(2)}`)
+  await linkDevModels()
+  say(
+    `수집 서버 ${collectorUrl}, 팀 "${DEV_TEAM_ID}", 데이터 apps/collector/${DEV_DATA_DIR.slice(2)}`
+  )
   say(`이번 실행의 개발 팀 토큰: ${teamToken}`)
 
   const collector = start({
@@ -113,7 +138,9 @@ const main = async () => {
   })
 
   if (!(await waitForHealth())) {
-    say(`수집 서버가 ${HEALTH_TIMEOUT_MS / 1000}초 안에 뜨지 않았습니다. 포트 ${collectorPort}를 다른 프로세스가 쓰는지 확인하세요 (DEV_STACK_COLLECTOR_PORT로 변경)`)
+    say(
+      `수집 서버가 ${HEALTH_TIMEOUT_MS / 1000}초 안에 뜨지 않았습니다. 포트 ${collectorPort}를 다른 프로세스가 쓰는지 확인하세요 (DEV_STACK_COLLECTOR_PORT로 변경)`
+    )
     stopAll(1)
     return
   }

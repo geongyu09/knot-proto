@@ -1,0 +1,11 @@
+# 저장소 루트 컨텍스트에서 Dockerfile이 COPY하는 것만 남긴다
+**
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!.npmrc
+!apps/*/package.json
+!packages/*/package.json
+!packages/telemetry/src
+!apps/collector/src
+**/*.test.ts

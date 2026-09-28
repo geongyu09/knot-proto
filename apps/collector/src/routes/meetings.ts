@@ -49,6 +49,8 @@ export const createMeetingsRoute = ({ db, now = Date.now }: CollectorDeps) =>
         meetingId,
         deletedAt: now()
       })
-      log.info(`[${c.get('teamId')}] 회의 ${meetingId} 삭제 표시 ${result.isMarked ? '' : '(이미 없거나 표시됨)'}`)
+      log.info(
+        `[${c.get('teamId')}] 회의 ${meetingId} 삭제 표시 ${result.isMarked ? '' : '(이미 없거나 표시됨)'}`
+      )
       return c.json({ meetingId, ...result })
     })

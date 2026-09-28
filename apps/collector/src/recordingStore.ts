@@ -55,6 +55,7 @@ export const saveRecordingProgress = ({
       (team_id, install_id, meeting_id, total_bytes, received_bytes, created_at, updated_at, completed_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (team_id, install_id, meeting_id) DO UPDATE SET
+      total_bytes = excluded.total_bytes,
       received_bytes = excluded.received_bytes,
       updated_at = excluded.updated_at,
       completed_at = excluded.completed_at

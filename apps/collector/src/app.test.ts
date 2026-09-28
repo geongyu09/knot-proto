@@ -214,6 +214,28 @@ describe('PUT /v1/recordings', () => {
     expect(await again.json()).toEqual({ receivedBytes: 10 })
   })
 
+  it('전체 크기가 바뀌면 0부터 다시 받아 완성본을 교체한다', async () => {
+    await putChunk(0, 9)
+    const replaced = new Uint8Array([9, 8, 7, 6])
+    const putReplaced = (start: number, end: number) =>
+      app.request(url, {
+        method: 'PUT',
+        headers: {
+          ...authHeaders,
+          'Content-Range': formatContentRange({ start, end, total: replaced.length })
+        },
+        body: replaced.slice(start, end + 1)
+      })
+
+    const midway = await putReplaced(2, 3)
+    const restart = await putReplaced(0, 3)
+
+    expect(midway.status).toBe(409)
+    expect(await midway.json()).toEqual({ receivedBytes: 0 })
+    expect(await restart.json()).toEqual({ receivedBytes: 4 })
+    expect(new Uint8Array(await readFile(finalPath()))).toEqual(replaced)
+  })
+
   it('Content-Range가 없거나 본문 길이와 다르면 400', async () => {
     const missing = await app.request(url, { method: 'PUT', headers: authHeaders, body: wav })
     const mismatched = await app.request(url, {

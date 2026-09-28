@@ -10,6 +10,10 @@
   "scripts": {
     "dev": "tsx watch --no-warnings=ExperimentalWarning src/index.ts",
     "start": "tsx --no-warnings=ExperimentalWarning src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/index.js",
+    "dev:stack": "tsx scripts/devStack.ts",
+    "inspect": "tsx --no-warnings=ExperimentalWarning scripts/inspect.ts",
+    "smoke": "tsx scripts/smoke.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -20,6 +24,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.19.1",
+    "esbuild": "^0.28.2",
     "tsx": "^4.23.12"
   }
 }
