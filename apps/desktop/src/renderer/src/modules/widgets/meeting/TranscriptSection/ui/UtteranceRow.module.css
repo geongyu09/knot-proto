@@ -141,3 +141,25 @@
 .copied {
   color: var(--color-success);
 }
+
+/* 결정 문서 원문 패널: 좁은 폭에 맞춰 시각 칸과 글자를 한 단계 줄인다 */
+.compact {
+  grid-template-columns: 48px minmax(0, 1fr) 30px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.compact .text {
+  font-size: var(--font-base);
+  line-height: 1.65;
+}
+
+.compact .speaker {
+  font-size: var(--font-xs);
+}
+
+.highlighted,
+.highlighted:hover,
+.highlighted:focus-within {
+  background: var(--color-accent-soft);
+}

@@ -3,6 +3,18 @@ import {
   IPC,
   type CheckLlmResponse,
   type CheckUpdateResponse,
+  type DecisionProgressEvent,
+  type ExtractDecisionsRequest,
+  type GetDecisionRequest,
+  type GetDecisionResponse,
+  type GetDecisionsResponse,
+  type GetDecisionTypesResponse,
+  type GetMeetingDecisionsRequest,
+  type GetMeetingDecisionsResponse,
+  type SearchDecisionsRequest,
+  type SearchDecisionsResponse,
+  type UpdateDecisionTypesRequest,
+  type UpdateDecisionTypesResponse,
   type DeleteMeetingRequest,
   type ExportMeetingAudioRequest,
   type ExportMeetingAudioResponse,
@@ -146,6 +158,22 @@ const api = {
   refine: {
     run: (payload: RunRefineRequest): Promise<void> => ipcRenderer.invoke(IPC.refine.run, payload)
   },
+  decisions: {
+    list: (): Promise<GetDecisionsResponse> => ipcRenderer.invoke(IPC.decisions.list),
+    get: (payload: GetDecisionRequest): Promise<GetDecisionResponse> =>
+      ipcRenderer.invoke(IPC.decisions.get, payload),
+    ofMeeting: (payload: GetMeetingDecisionsRequest): Promise<GetMeetingDecisionsResponse> =>
+      ipcRenderer.invoke(IPC.decisions.ofMeeting, payload),
+    extract: (payload: ExtractDecisionsRequest): Promise<void> =>
+      ipcRenderer.invoke(IPC.decisions.extract, payload),
+    search: (payload: SearchDecisionsRequest): Promise<SearchDecisionsResponse> =>
+      ipcRenderer.invoke(IPC.decisions.search, payload)
+  },
+  decisionTypes: {
+    get: (): Promise<GetDecisionTypesResponse> => ipcRenderer.invoke(IPC.decisionTypes.get),
+    update: (payload: UpdateDecisionTypesRequest): Promise<UpdateDecisionTypesResponse> =>
+      ipcRenderer.invoke(IPC.decisionTypes.update, payload)
+  },
   glossary: {
     get: (): Promise<GetGlossaryResponse> => ipcRenderer.invoke(IPC.glossary.get),
     update: (payload: UpdateGlossaryRequest): Promise<UpdateGlossaryResponse> =>
@@ -198,6 +226,14 @@ const api = {
 
       return () => {
         ipcRenderer.removeListener(IPC.events.refine, handler)
+      }
+    },
+    onDecisionProgress: (listener: (event: DecisionProgressEvent) => void) => {
+      const handler = (_: IpcRendererEvent, payload: DecisionProgressEvent) => listener(payload)
+      ipcRenderer.on(IPC.events.decisions, handler)
+
+      return () => {
+        ipcRenderer.removeListener(IPC.events.decisions, handler)
       }
     },
     onModelDownloadProgress: (listener: (event: ModelDownloadProgressEvent) => void) => {

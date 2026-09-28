@@ -1,12 +1,8 @@
 import { useRef, useState } from 'react'
 import type { KeyboardEvent, PointerEvent, RefObject } from 'react'
 
-import {
-  RAIL_DEFAULT_PX,
-  RAIL_KEYBOARD_STEP_PX,
-  RAIL_MAX_PX,
-  RAIL_WIDTH_STORAGE_KEY
-} from '../constants/rail'
+import { RAIL_KEYBOARD_STEP_PX, RAIL_LIMITS } from '../constants/rail'
+import type { RailLimits } from '../types/rail'
 import { clampRailWidth, railMaxWidthOf } from '../utils/clampRailWidth'
 
 // 레일이 오른쪽에 있으므로 핸들을 왼쪽으로 옮길수록 넓어진다
@@ -22,20 +18,20 @@ interface DragState {
 }
 
 // 폭은 화면 선호일 뿐이라 저장소를 못 쓰면 기본 폭으로 계속 동작한다 (references/architecture.md "화면별 구성")
-const readSavedWidth = () => {
+const readSavedWidth = (limits: RailLimits) => {
   try {
-    const saved = Number(localStorage.getItem(RAIL_WIDTH_STORAGE_KEY))
-    if (!Number.isFinite(saved) || saved <= 0) return RAIL_DEFAULT_PX
-    return clampRailWidth({ width: saved, maxWidth: RAIL_MAX_PX })
+    const saved = Number(localStorage.getItem(limits.storageKey))
+    if (!Number.isFinite(saved) || saved <= 0) return limits.defaultPx
+    return clampRailWidth({ width: saved, maxWidth: limits.maxPx, limits })
   } catch (error) {
     console.warn('레일 폭을 불러오지 못했습니다', error)
-    return RAIL_DEFAULT_PX
+    return limits.defaultPx
   }
 }
 
-const saveWidth = (width: number) => {
+const saveWidth = ({ width, limits }: { width: number; limits: RailLimits }) => {
   try {
-    localStorage.setItem(RAIL_WIDTH_STORAGE_KEY, String(width))
+    localStorage.setItem(limits.storageKey, String(width))
   } catch (error) {
     console.warn('레일 폭을 저장하지 못했습니다', error)
   }
@@ -51,20 +47,22 @@ const contentWidthOf = (container: HTMLElement | null) => {
 interface UseRailResizeParams {
   /** 회의록과 레일을 담은 그리드. 창 폭에 따른 상한을 여기서 잰다 */
   containerRef: RefObject<HTMLElement | null>
+  /** 폭 범위·저장 키. 생략하면 회의 상세 레일 */
+  limits?: RailLimits
 }
 
-const useRailResize = ({ containerRef }: UseRailResizeParams) => {
-  const [railWidth, setRailWidth] = useState(readSavedWidth)
+const useRailResize = ({ containerRef, limits = RAIL_LIMITS }: UseRailResizeParams) => {
+  const [railWidth, setRailWidth] = useState(() => readSavedWidth(limits))
   const [isResizing, setIsResizing] = useState(false)
   const dragRef = useRef<DragState | null>(null)
 
   const measureMaxWidth = () =>
-    railMaxWidthOf({ contentWidth: contentWidthOf(containerRef.current) })
+    railMaxWidthOf({ contentWidth: contentWidthOf(containerRef.current), limits })
 
   const commitWidth = (width: number) => {
-    const next = clampRailWidth({ width, maxWidth: measureMaxWidth() })
+    const next = clampRailWidth({ width, maxWidth: measureMaxWidth(), limits })
     setRailWidth(next)
-    saveWidth(next)
+    saveWidth({ width: next, limits })
   }
 
   const startResize = (event: PointerEvent<HTMLElement>) => {
@@ -84,14 +82,14 @@ const useRailResize = ({ containerRef }: UseRailResizeParams) => {
     const drag = dragRef.current
     if (!drag) return
     const width = drag.startWidth + drag.startX - event.clientX
-    setRailWidth(clampRailWidth({ width, maxWidth: drag.maxWidth }))
+    setRailWidth(clampRailWidth({ width, maxWidth: drag.maxWidth, limits }))
   }
 
   const endResize = () => {
     if (!dragRef.current) return
     dragRef.current = null
     setIsResizing(false)
-    saveWidth(railWidth)
+    saveWidth({ width: railWidth, limits })
   }
 
   const resizeByKey = (event: KeyboardEvent<HTMLElement>) => {
@@ -101,7 +99,7 @@ const useRailResize = ({ containerRef }: UseRailResizeParams) => {
     commitWidth(Math.min(railWidth, measureMaxWidth()) + delta)
   }
 
-  const resetWidth = () => commitWidth(RAIL_DEFAULT_PX)
+  const resetWidth = () => commitWidth(limits.defaultPx)
 
   return { railWidth, isResizing, startResize, moveResize, endResize, resizeByKey, resetWidth }
 }

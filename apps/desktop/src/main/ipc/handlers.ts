@@ -82,6 +82,7 @@ import { replaceGlobalShortcuts, setGlobalShortcutsSuspended } from '../windows/
 import { refreshTray } from '../windows/tray'
 import { requestRecordingCommand } from '../windows/recorder'
 import { trackRendererEvent } from '../telemetry/rendererEvents'
+import { registerDecisionHandlers } from './decisionHandlers'
 import { changedSettingKeys } from '../telemetry/settingsDiff'
 import { track, trackMeetingDeleted, trackMeetingEdit } from '../telemetry/track'
 
@@ -702,4 +703,6 @@ export const registerIpcHandlers = () => {
 
   // 응답 없음. 걸러서 outbox에 넣기만 한다 (references/telemetry.md "싱크별 규칙")
   ipcMain.handle(IPC.telemetry.track, (_event, payload) => trackRendererEvent(payload))
+
+  registerDecisionHandlers()
 }

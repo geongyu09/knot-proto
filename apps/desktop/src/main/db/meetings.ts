@@ -1,5 +1,5 @@
 import type { MeetingSearchResult } from '@shared/ipc'
-import type { Meeting, MeetingStatus } from '@shared/types'
+import type { DecisionState, Meeting, MeetingStatus } from '@shared/types'
 import { SEARCH_RESULT_LIMIT, toLikePattern } from '../searchQuery'
 import { getDb } from './connection'
 import { t } from '../locale'
@@ -14,7 +14,14 @@ interface MeetingRow {
   audio_path: string | null
   summary: string | null
   speaker_count: number | null
+  decision_state: DecisionState
+  decision_error: string | null
+  /** 조회마다 decisions 개수를 붙인다 (MEETING_COLUMNS) */
+  decision_count: number
 }
+
+/** 회의 행과 결정 문서 개수. 목록·상세·검색이 같은 모양을 쓰도록 한 곳에 둔다 */
+const MEETING_COLUMNS = `m.*, (SELECT COUNT(*) FROM decisions d WHERE d.meeting_id = m.id) AS decision_count`
 
 const toMeeting = (row: MeetingRow): Meeting => ({
   id: row.id,
@@ -25,7 +32,10 @@ const toMeeting = (row: MeetingRow): Meeting => ({
   ...(row.error_message ? { errorMessage: row.error_message } : {}),
   ...(row.summary ? { summary: row.summary } : {}),
   ...(row.speaker_count ? { speakerCount: row.speaker_count } : {}),
-  hasAudio: row.audio_path !== null
+  hasAudio: row.audio_path !== null,
+  decisionState: row.decision_state,
+  decisionCount: row.decision_count,
+  ...(row.decision_error ? { decisionError: row.decision_error } : {})
 })
 
 interface InsertMeetingParams {
@@ -46,7 +56,7 @@ export const insertMeeting = ({ id, title, createdAt, audioPath }: InsertMeeting
 
 export const listMeetings = () =>
   getDb()
-    .prepare('SELECT * FROM meetings ORDER BY created_at DESC')
+    .prepare(`SELECT ${MEETING_COLUMNS} FROM meetings m ORDER BY m.created_at DESC`)
     .all()
     .map((row) => toMeeting(row as MeetingRow))
 
@@ -80,7 +90,7 @@ export const searchMeetings = ({ query }: { query: string }) => {
          FROM utterances u
          WHERE u.text LIKE @pattern ESCAPE '\\'
        )
-       SELECT m.*, f.id AS match_utterance_id, f.text AS match_text, f.start_sec AS match_start_sec
+       SELECT ${MEETING_COLUMNS}, f.id AS match_utterance_id, f.text AS match_text, f.start_sec AS match_start_sec
        FROM meetings m
        LEFT JOIN first_match f ON f.meeting_id = m.id AND f.rank = 1
        WHERE f.id IS NOT NULL OR m.title LIKE @pattern ESCAPE '\\'
@@ -92,7 +102,9 @@ export const searchMeetings = ({ query }: { query: string }) => {
 }
 
 export const findMeeting = ({ meetingId }: { meetingId: string }) => {
-  const row = getDb().prepare('SELECT * FROM meetings WHERE id = ?').get(meetingId)
+  const row = getDb()
+    .prepare(`SELECT ${MEETING_COLUMNS} FROM meetings m WHERE m.id = ?`)
+    .get(meetingId)
 
   return row ? toMeeting(row as MeetingRow) : null
 }
@@ -204,3 +216,27 @@ export const failStaleMeetings = () =>
        WHERE status IN ('recording', 'processing')`
     )
     .run({ errorMessage: t().main.pipeline.interruptedByQuit }).changes
+
+/** 결정 추출을 줄 세운 순간. 이전 실패 문구는 지운다 (references/data-model.md "결정 문서") */
+export const markDecisionsPending = ({ meetingId }: { meetingId: string }) => {
+  getDb()
+    .prepare("UPDATE meetings SET decision_state = 'pending', decision_error = NULL WHERE id = ?")
+    .run(meetingId)
+}
+
+/** 추출 실패. 이전에 성공한 문서는 지우지 않는다 */
+export const failDecisions = ({ meetingId, message }: { meetingId: string; message: string }) => {
+  getDb()
+    .prepare(
+      "UPDATE meetings SET decision_state = 'error', decision_error = @message WHERE id = @meetingId"
+    )
+    .run({ meetingId, message })
+}
+
+/** 추출 중에 앱이 꺼져 남은 pending. 켜자마자 다시 돌리지 않고 실패로 보인다 (references/decisions.md "흐름") */
+export const failStaleDecisions = () =>
+  getDb()
+    .prepare(
+      "UPDATE meetings SET decision_state = 'error', decision_error = @message WHERE decision_state = 'pending'"
+    )
+    .run({ message: t().decisions.extraction.interruptedByQuit }).changes

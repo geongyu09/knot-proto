@@ -10,7 +10,9 @@ const meetingAt = (id: string, date: Date): Meeting => ({
   createdAt: date.getTime(),
   durationSec: 60,
   status: 'done',
-  hasAudio: false
+  hasAudio: false,
+  decisionState: 'none',
+  decisionCount: 0
 })
 
 describe('meetingDateGroupOf', () => {

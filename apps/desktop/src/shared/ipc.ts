@@ -1,5 +1,9 @@
 import type {
   AppSettings,
+  Decision,
+  DecisionListItem,
+  DecisionStage,
+  DecisionType,
   GlossarySettings,
   LlmApiVendor,
   LlmProvider,
@@ -55,6 +59,15 @@ export const IPC = {
   summary: { create: 'summary:create' },
   glossary: { get: 'glossary:get', update: 'glossary:update', draft: 'glossary:draft' },
   refine: { run: 'refine:run' },
+  // 결정 문서 (test/usage-analytics 브랜치, references/decisions.md "IPC")
+  decisions: {
+    list: 'decisions:list',
+    get: 'decisions:get',
+    ofMeeting: 'decisions:ofMeeting',
+    extract: 'decisions:extract',
+    search: 'decisions:search'
+  },
+  decisionTypes: { get: 'decisionTypes:get', update: 'decisionTypes:update' },
   llm: {
     status: 'llm:status',
     setProvider: 'llm:setProvider',
@@ -74,6 +87,7 @@ export const IPC = {
     progress: 'pipeline:progress',
     summary: 'summary:progress',
     refine: 'refine:progress',
+    decisions: 'decisions:progress',
     modelDownload: 'models:downloadProgress',
     // 녹음 호스트 창은 앱 시작 때 모델 상태를 읽고 언마운트되지 않는다. 다운로드 뒤 다시 읽게 알린다 (references/distribution.md 3절)
     modelsChanged: 'models:changed',
@@ -455,4 +469,47 @@ export interface CheckUpdateResponse {
 /** 새 버전을 발견했을 때 한 번 보낸다. 내려받기는 사용자가 `update:download`로 요청한다 */
 export interface UpdateAvailableEvent {
   version: string
+}
+
+/** 사이드 패널 결정 탭용. 회의 최신순 → 회의 안 순서 (references/decisions.md "사이드 패널") */
+export type GetDecisionsResponse = DecisionListItem[]
+
+export interface GetDecisionRequest {
+  decisionId: string
+}
+/** 문서 하나와 출처 회의. 원문 패널은 `meetings:get`으로 따로 읽는다. 없으면 null */
+export type GetDecisionResponse = { decision: Decision; meeting: Meeting } | null
+
+export interface GetMeetingDecisionsRequest {
+  meetingId: string
+}
+export type GetMeetingDecisionsResponse = DecisionListItem[]
+
+/**
+ * 그 회의의 결정 문서를 전부 새로 만든다. 요약처럼 큐에 넣고 즉시 반환하며, 진행은 `decisions:progress`,
+ * 목록 갱신은 `meetings:changed`로 온다 (references/decisions.md "IPC").
+ */
+export interface ExtractDecisionsRequest {
+  meetingId: string
+}
+
+/** 결정 문서 제목·결정 내용·배경 부분 일치 검색. 공백뿐인 질의는 빈 배열 */
+export interface SearchDecisionsRequest {
+  query: string
+}
+export type SearchDecisionsResponse = DecisionListItem[]
+
+export type GetDecisionTypesResponse = DecisionType[]
+/** 새 타입은 id를 빈 문자열로 보내면 main이 uuid를 붙인다 */
+export interface UpdateDecisionTypesRequest {
+  types: DecisionType[]
+}
+export type UpdateDecisionTypesResponse = DecisionType[]
+
+export interface DecisionProgressEvent {
+  meetingId: string
+  stage: DecisionStage
+  percent: number
+  /** stage가 'error'일 때만. 사용자에게 보여줄 한국어 안내 */
+  errorMessage?: string
 }

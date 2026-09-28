@@ -76,6 +76,18 @@ export interface TelemetryEventMap {
     pairCount: number
   }
   refine_reverted: { meetingId: string }
+  decisions_completed: {
+    meetingId: string
+    provider: string
+    elapsedMs: number
+    chunkCount: number
+    count: number
+    droppedCount: number
+    trigger: 'auto' | 'manual' | 'reprocess'
+  }
+  decision_opened: { decisionId: string; meetingId: string }
+  decision_copied: { decisionId: string }
+  decision_types_updated: { count: number }
   transcript_copied: { format: string; scope: 'all' | 'utterance' }
   summary_copied: Record<string, never>
   meeting_renamed: { meetingId: string }
@@ -110,6 +122,10 @@ export const EVENT_CATEGORIES: Record<TelemetryEventName, TelemetryCategory> = {
   summary_completed: 'performance',
   refine_completed: 'performance',
   refine_reverted: 'usage',
+  decisions_completed: 'performance',
+  decision_opened: 'usage',
+  decision_copied: 'usage',
+  decision_types_updated: 'usage',
   transcript_copied: 'usage',
   summary_copied: 'usage',
   meeting_renamed: 'usage',
@@ -137,6 +153,8 @@ export const RENDERER_EVENT_NAMES = [
   'screen_viewed',
   'transcript_copied',
   'summary_copied',
+  'decision_opened',
+  'decision_copied',
   'renderer_error'
 ] as const satisfies readonly TelemetryEventName[]
 

@@ -1,5 +1,6 @@
 import type { Speaker } from '@shared/types'
 import { getDb } from './connection'
+import { relabelDecisionSpeakers } from './decisions'
 
 interface SpeakerRow {
   meeting_id: string
@@ -46,7 +47,7 @@ interface MergeSpeakersParams {
   intoLabel: string
 }
 
-/** 화자 A를 B에 흡수한다. 발화 이관과 행 삭제를 한 트랜잭션에서 한다 (references/data-model.md) */
+/** 화자 A를 B에 흡수한다. 발화 이관·결정 문서 사람 필드 치환·행 삭제를 한 트랜잭션에서 한다 (references/data-model.md) */
 export const mergeSpeakers = ({ meetingId, fromLabel, intoLabel }: MergeSpeakersParams) => {
   const db = getDb()
   const move = db.prepare(
@@ -57,6 +58,7 @@ export const mergeSpeakers = ({ meetingId, fromLabel, intoLabel }: MergeSpeakers
 
   db.transaction(() => {
     move.run({ meetingId, fromLabel, intoLabel })
+    relabelDecisionSpeakers({ meetingId, fromLabel, intoLabel })
     remove.run(meetingId, fromLabel)
   })()
 }

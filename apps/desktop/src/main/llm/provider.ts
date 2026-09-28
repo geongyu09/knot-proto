@@ -30,8 +30,8 @@ export const getLlmStatus = async (): Promise<LlmStatus> => {
 const createClaudeApiClient = ({ apiKey }: { apiKey: string }): LlmClient => ({
   provider: 'claude-api',
   chunkBudgetChars: API_CHUNK_BUDGET_CHARS,
-  complete: ({ system, prompt, maxTokens }) =>
-    completeWithClaudeApi({ apiKey, system, prompt, maxTokens })
+  complete: ({ system, prompt, maxTokens, jsonSchema }) =>
+    completeWithClaudeApi({ apiKey, system, prompt, maxTokens, jsonSchema })
 })
 
 const createClaudeCliClient = ({ cliPath }: { cliPath: string }): LlmClient => ({
@@ -48,8 +48,8 @@ interface CreateOpenaiApiClientParams {
 const createOpenaiApiClient = ({ apiKey, model }: CreateOpenaiApiClientParams): LlmClient => ({
   provider: 'openai-api',
   chunkBudgetChars: API_CHUNK_BUDGET_CHARS,
-  complete: ({ system, prompt, maxTokens }) =>
-    completeWithOpenaiApi({ apiKey, model, system, prompt, maxTokens })
+  complete: ({ system, prompt, maxTokens, jsonSchema }) =>
+    completeWithOpenaiApi({ apiKey, model, system, prompt, maxTokens, jsonSchema })
 })
 
 /**

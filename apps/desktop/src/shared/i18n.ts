@@ -1,4 +1,5 @@
 import { commonEn, commonKo } from './locales/common'
+import { decisionsEn, decisionsKo } from './locales/decisions'
 import { glossaryEn, glossaryKo } from './locales/glossary'
 import { llmEn, llmKo } from './locales/llm'
 import { mainEn, mainKo } from './locales/main'
@@ -36,6 +37,7 @@ const ko = {
   transcript: transcriptKo,
   summary: summaryKo,
   refine: refineKo,
+  decisions: decisionsKo,
   pipeline: pipelineKo,
   recording: recordingKo,
   models: modelsKo,
@@ -55,6 +57,7 @@ const en: Messages = {
   transcript: transcriptEn,
   summary: summaryEn,
   refine: refineEn,
+  decisions: decisionsEn,
   pipeline: pipelineEn,
   recording: recordingEn,
   models: modelsEn,

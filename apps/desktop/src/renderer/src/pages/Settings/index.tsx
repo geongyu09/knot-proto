@@ -1,6 +1,7 @@
 import AutoRefineToggle from '@renderer/modules/features/refine/AutoRefineToggle'
 import ModelDownloadSection from '@renderer/modules/widgets/model/ModelDownloadSection'
 import SummaryModelSection from '@renderer/modules/widgets/model/SummaryModelSection'
+import DecisionTypesSection from '@renderer/modules/widgets/setting/DecisionTypesSection'
 import GlossarySection from '@renderer/modules/widgets/setting/GlossarySection'
 import LlmSection from '@renderer/modules/widgets/setting/LlmSection'
 import SettingsSection from '@renderer/modules/widgets/setting/SettingsSection'
@@ -26,6 +27,7 @@ export default function Settings() {
             localModelSlot={<SummaryModelSection />}
             externalSlot={<AutoRefineToggle />}
           />
+          <DecisionTypesSection />
           <GlossarySection />
         </SettingsSection>
       </div>

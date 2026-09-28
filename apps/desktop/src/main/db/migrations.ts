@@ -81,6 +81,30 @@ const MIGRATIONS = [
     attempts        INTEGER NOT NULL DEFAULT 0,
     next_attempt_at INTEGER NOT NULL
   );
+  `,
+  // 7: 결정 문서 (test/usage-analytics 브랜치, references/data-model.md "결정 문서").
+  //    type_id는 settings JSON을 가리켜 FK가 없다 — 타입을 지워도 문서는 미분류로 남아야 한다
+  `
+  ALTER TABLE meetings ADD COLUMN decision_state TEXT NOT NULL DEFAULT 'none';
+  ALTER TABLE meetings ADD COLUMN decision_error TEXT;
+  ALTER TABLE meetings ADD COLUMN decisions_extracted_at INTEGER;
+
+  CREATE TABLE IF NOT EXISTS decisions (
+    id                 TEXT PRIMARY KEY,
+    meeting_id         TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    ord                INTEGER NOT NULL,
+    type_id            TEXT,
+    title              TEXT NOT NULL,
+    decision           TEXT NOT NULL,
+    background         TEXT NOT NULL DEFAULT '',
+    alternatives       TEXT NOT NULL DEFAULT '[]',
+    action_items       TEXT NOT NULL DEFAULT '[]',
+    proposer_labels    TEXT NOT NULL DEFAULT '[]',
+    participant_labels TEXT NOT NULL DEFAULT '[]',
+    evidence           TEXT NOT NULL,
+    created_at         INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_decisions_meeting ON decisions(meeting_id, ord);
   `
 ]
 

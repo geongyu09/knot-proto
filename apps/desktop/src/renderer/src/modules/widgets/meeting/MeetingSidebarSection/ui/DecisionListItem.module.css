@@ -1,0 +1,29 @@
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+}
+
+.item:hover {
+  background: var(--color-surface-hover);
+}
+
+.active,
+.active:hover {
+  background: var(--color-border);
+}
+
+.title {
+  overflow: hidden;
+  font-size: var(--font-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-xs);
+}

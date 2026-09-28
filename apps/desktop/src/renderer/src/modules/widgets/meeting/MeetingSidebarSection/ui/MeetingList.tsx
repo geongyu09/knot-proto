@@ -4,11 +4,9 @@ import useNow from '@renderer/shared/hooks/common/useNow'
 import { useLocale } from '@renderer/shared/provider/context/localeContext'
 import { groupMeetingsByDate } from '@renderer/shared/utils/meetingDateGroup'
 
+import { NOW_REFRESH_MS } from '../constants/sidebar'
 import MeetingListItem from './MeetingListItem'
 import styles from './MeetingList.module.css'
-
-/** 날짜 묶음이 자정을 넘기면 바뀌어야 하므로 1분마다 현재 시각을 새로 읽는다 */
-const NOW_REFRESH_MS = 60_000
 
 interface MeetingListProps {
   meetings: Meeting[]

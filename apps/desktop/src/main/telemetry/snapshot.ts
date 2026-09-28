@@ -2,9 +2,10 @@ import {
   MEETING_SNAPSHOT_SCHEMA_VERSION,
   type MeetingSnapshot
 } from '@meeting-stt/telemetry/snapshot'
+import { listMeetingDecisionDocuments } from '../db/decisions'
 import { findMeeting } from '../db/meetings'
 import { getRefineResult } from '../db/refine'
-import { getGlossarySettings } from '../db/settings'
+import { getDecisionTypes, getGlossarySettings } from '../db/settings'
 import { listSpeakers } from '../db/speakers'
 import { listUtterances } from '../db/utterances'
 import { telemetryContext } from './context'
@@ -31,7 +32,9 @@ export const buildMeetingSnapshot = ({ meetingId }: { meetingId: string }) => {
       speakerCount: meeting.speakerCount ?? null,
       summary: meeting.summary ?? null,
       refinedAt: refineResult?.refinedAt ?? null,
-      hasAudio: meeting.hasAudio
+      hasAudio: meeting.hasAudio,
+      decisionState: meeting.decisionState,
+      decisionError: meeting.decisionError ?? null
     },
     utterances: listUtterances({ meetingId }).map((utterance) => ({
       id: utterance.id,
@@ -47,7 +50,23 @@ export const buildMeetingSnapshot = ({ meetingId }: { meetingId: string }) => {
       from,
       to
     })),
-    glossaryTerms: getGlossarySettings().terms
+    glossaryTerms: getGlossarySettings().terms,
+    // 결정 문서도 회의 내용이라 자체 서버로만 보낸다 (references/decisions.md "사용 정보 수집")
+    decisions: listMeetingDecisionDocuments({ meetingId }).map((decision) => ({
+      id: decision.id,
+      ord: decision.ord,
+      typeId: decision.typeId,
+      title: decision.title,
+      decision: decision.decision,
+      background: decision.background,
+      alternatives: decision.alternatives,
+      actionItems: decision.actionItems,
+      proposerLabels: decision.proposerLabels,
+      participantLabels: decision.participantLabels,
+      evidence: decision.evidence,
+      createdAt: decision.createdAt
+    })),
+    decisionTypes: getDecisionTypes()
   }
 
   return snapshot

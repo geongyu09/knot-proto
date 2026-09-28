@@ -19,6 +19,8 @@ export const saveTranscript = ({ meetingId, utterances }: SaveTranscriptParams) 
   const clearRefine = db.prepare(
     'UPDATE meetings SET refine_applied = NULL, refined_at = NULL WHERE id = ?'
   )
+  // 새 발화의 시각이 이전 근거 구간과 맞지 않으므로 이전 결정 문서도 지운다. 추출은 큐가 다시 넣는다
+  const clearDecisions = db.prepare('DELETE FROM decisions WHERE meeting_id = ?')
 
   db.transaction(() => {
     removeSpeakers.run(meetingId)
@@ -28,5 +30,6 @@ export const saveTranscript = ({ meetingId, utterances }: SaveTranscriptParams) 
     })
     replaceUtterances({ meetingId, utterances })
     clearRefine.run(meetingId)
+    clearDecisions.run(meetingId)
   })()
 }

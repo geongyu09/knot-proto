@@ -20,6 +20,10 @@ interface UtteranceRowProps {
   onCopy: (params: { utterance: Utterance }) => void
   /** 원본 녹음이 있을 때만 넘긴다. 있으면 시각이 재생 위치 이동 버튼이 된다 */
   onSeek?: (sec: number) => void
+  /** 결정 문서 원문 패널의 좁은 행 (글자 한 단계 작게) */
+  isCompact?: boolean
+  /** 결정 문서의 근거 구간과 겹치는 발화 */
+  isHighlighted?: boolean
 }
 
 /** 시각 · (화자 + 본문) · 복사. 복사 버튼은 행에 마우스를 올리거나 포커스가 들어올 때만 보인다 */
@@ -31,7 +35,9 @@ export default function UtteranceRow({
   onCommitText,
   onRevertRefine,
   onCopy,
-  onSeek
+  onSeek,
+  isCompact = false,
+  isHighlighted = false
 }: UtteranceRowProps) {
   const { t } = useLocale()
   const { utterance: labels } = t.transcript
@@ -39,7 +45,16 @@ export default function UtteranceRow({
   const timestamp = formatTimestamp({ sec: utterance.startSec })
 
   return (
-    <li className={styles.row}>
+    <li
+      className={[
+        styles.row,
+        isCompact ? styles.compact : '',
+        isHighlighted ? styles.highlighted : ''
+      ].join(' ')}
+      // 원문 패널이 근거 구간으로 스크롤할 때 이 값으로 행을 찾는다
+      data-utterance-id={utterance.id}
+      data-highlighted={isHighlighted}
+    >
       {onSeek ? (
         <button
           type="button"

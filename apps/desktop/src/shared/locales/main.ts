@@ -35,6 +35,7 @@ export const mainKo = {
   },
   fields: {
     meetingId: '회의 ID',
+    decisionId: '결정 문서 ID',
     utteranceId: '발화 ID',
     speakerLabel: '화자 라벨',
     meetingTitle: '회의 제목',
@@ -177,6 +178,7 @@ export const mainEn: typeof mainKo = {
   },
   fields: {
     meetingId: 'Meeting ID',
+    decisionId: 'Decision ID',
     utteranceId: 'Utterance ID',
     speakerLabel: 'Speaker label',
     meetingTitle: 'Meeting title',

@@ -31,7 +31,75 @@ export interface Meeting {
   speakerCount?: number
   /** 원본 WAV가 남아 있는지. 재생·내보내기·다시 인식은 이 값이 true일 때만 할 수 있다 (references/architecture.md) */
   hasAudio: boolean
+  /** 결정 문서 추출 상태 (references/decisions.md). 'none'은 추출한 적 없는 회의 */
+  decisionState: DecisionState
+  /** 저장된 결정 문서 수 */
+  decisionCount: number
+  /** decisionState가 'error'일 때 사용자에게 보여줄 안내 */
+  decisionError?: string
 }
+
+/** 결정 문서 추출 상태. 회의 `status`(파이프라인 소유)와 따로 둔다 (references/decisions.md "흐름") */
+export type DecisionState = 'none' | 'pending' | 'done' | 'error'
+
+/** 사용자가 설정에서 정의하는 결정 타입. 배열 순서가 사이드 패널 묶음 순서다 */
+export interface DecisionType {
+  id: string
+  name: string
+  description: string
+}
+
+export interface DecisionAlternative {
+  option: string
+  reason: string
+}
+
+/** 후속 조치. 담당이 그 회의의 화자로 풀리면 ownerLabel, 아니면 말한 그대로 ownerText만 둔다 */
+export interface DecisionActionItem {
+  task: string
+  ownerLabel: string | null
+  ownerText: string
+  /** 말한 그대로의 기한 ("다음 주 금요일"). 절대 날짜로 바꾸지 않는다 */
+  due: string
+}
+
+/** 근거 구간(초). 발화 id가 아니라 시각이라 다시 인식해도 원문 패널에서 겹치는 발화로 다시 찾는다 */
+export interface DecisionEvidence {
+  startSec: number
+  endSec: number
+}
+
+/** 결정 문서 하나 (읽기 전용). 사람 필드는 화자 라벨이고 표시 이름은 읽는 쪽이 speakers로 푼다 */
+export interface Decision {
+  id: string
+  meetingId: string
+  ord: number
+  /** 타입 목록에 없거나 null이면 미분류 */
+  typeId: string | null
+  title: string
+  decision: string
+  background: string
+  alternatives: DecisionAlternative[]
+  actionItems: DecisionActionItem[]
+  proposerLabels: string[]
+  participantLabels: string[]
+  evidence: DecisionEvidence[]
+  /** 추출 시각 (epoch ms) */
+  createdAt: number
+}
+
+/** 사이드 패널·회의 상세 목록용 가벼운 행 */
+export interface DecisionListItem {
+  id: string
+  meetingId: string
+  typeId: string | null
+  title: string
+  meetingTitle: string
+  meetingCreatedAt: number
+}
+
+/** 결정 추출 잡의 단계. 'extract'는 청크별 추출(map), 'reduce'는 중복 합치기 */
+export type DecisionStage = 'queued' | 'extract' | 'reduce' | 'done' | 'error'
 
 export interface Utterance extends MergedUtterance {
   id: string

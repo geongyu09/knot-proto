@@ -1,4 +1,5 @@
 import { createHashRouter } from 'react-router'
+import DecisionDetail from '@renderer/pages/DecisionDetail'
 import Home from '@renderer/pages/Home'
 import MeetingDetail from '@renderer/pages/MeetingDetail'
 import Meetings from '@renderer/pages/Meetings'
@@ -30,6 +31,7 @@ export const router = createHashRouter([
               { path: PATHS.meetings, element: <Meetings /> },
               { path: PATHS.record, element: <Record /> },
               { path: PATHS.meetingDetail, element: <MeetingDetail /> },
+              { path: PATHS.decisionDetail, element: <DecisionDetail /> },
               { path: PATHS.settings, element: <Settings /> }
             ]
           }

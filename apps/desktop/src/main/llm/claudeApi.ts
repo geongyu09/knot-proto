@@ -2,6 +2,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { API_MIN_MAX_TOKENS, CLAUDE_API_MODEL_ID } from '@shared/llm'
 import { t } from '../locale'
 
+import type { LlmJsonSchema } from './types'
+
 /** 요약·초안은 정형 작업이라 높은 노력이 필요 없다 (references/architecture.md "Claude API 호출") */
 const EFFORT = 'medium'
 
@@ -10,6 +12,7 @@ interface CompleteWithClaudeApiParams {
   system: string
   prompt: string
   maxTokens: number
+  jsonSchema?: LlmJsonSchema
 }
 
 /** SDK 오류를 사용자에게 보여줄 한국어 안내로 바꾼다. 구체적인 것부터 본다 */
@@ -43,7 +46,8 @@ export const completeWithClaudeApi = async ({
   apiKey,
   system,
   prompt,
-  maxTokens
+  maxTokens,
+  jsonSchema
 }: CompleteWithClaudeApiParams) => {
   const client = new Anthropic({ apiKey })
 
@@ -56,7 +60,10 @@ export const completeWithClaudeApi = async ({
         system,
         messages: [{ role: 'user', content: prompt }],
         thinking: { type: 'adaptive' },
-        output_config: { effort: EFFORT }
+        output_config: {
+          effort: EFFORT,
+          ...(jsonSchema ? { format: { type: 'json_schema', schema: jsonSchema.schema } } : {})
+        }
       })
       .finalMessage()
 

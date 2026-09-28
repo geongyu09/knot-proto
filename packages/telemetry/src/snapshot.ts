@@ -17,6 +17,9 @@ export interface SnapshotMeeting {
   /** 마지막 자동 교정 시각 (epoch ms). 교정하지 않았으면 null */
   refinedAt: number | null
   hasAudio: boolean
+  /** 결정 문서 추출 상태 (references/decisions.md). 이 필드가 없던 옛 스냅샷은 서버가 'none'으로 읽는다 */
+  decisionState?: string
+  decisionError?: string | null
 }
 
 export interface SnapshotUtterance {
@@ -40,6 +43,28 @@ export interface SnapshotRefinePair {
   to: string
 }
 
+/** 결정 문서 하나. 사람 필드는 화자 라벨이고, 표시 이름은 같은 스냅샷의 speakers로 푼다 */
+export interface SnapshotDecision {
+  id: string
+  ord: number
+  typeId: string | null
+  title: string
+  decision: string
+  background: string
+  alternatives: { option: string; reason: string }[]
+  actionItems: { task: string; ownerLabel: string | null; ownerText: string; due: string }[]
+  proposerLabels: string[]
+  participantLabels: string[]
+  evidence: { startSec: number; endSec: number }[]
+  createdAt: number
+}
+
+export interface SnapshotDecisionType {
+  id: string
+  name: string
+  description: string
+}
+
 export interface MeetingSnapshot {
   schemaVersion: typeof MEETING_SNAPSHOT_SCHEMA_VERSION
   installId: string
@@ -53,4 +78,8 @@ export interface MeetingSnapshot {
   refinePairs: SnapshotRefinePair[]
   /** 보낸 시점의 전역 용어 사전 */
   glossaryTerms: string[]
+  /** 저장된 결정 문서 전체 (2026-09-28). 옛 데스크탑 빌드는 보내지 않는다 */
+  decisions?: SnapshotDecision[]
+  /** 보낸 시점의 결정 타입 목록 */
+  decisionTypes?: SnapshotDecisionType[]
 }

@@ -93,3 +93,38 @@
 .retry {
   margin: 0 var(--space-4);
 }
+
+/* 결정 문서 화면: 왼쪽 문서 칸 · 핸들 · 오른쪽 원문 패널. 헤더 줄이 없어 모두 한 줄에서 시작한다 */
+.panelLayout {
+  padding-bottom: var(--space-5);
+}
+
+.main {
+  min-width: 0;
+}
+
+/* 원문 패널은 레일처럼 붙어 있되 카드 없이 테두리 한 줄로 문서와 나눈다 */
+.panel {
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.panelTitle {
+  margin: 0;
+  padding: 0 var(--space-1);
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+
+.panel .transcript {
+  gap: var(--space-3);
+}
+
+.panel .message,
+.panel .error {
+  padding: 0 var(--space-1);
+  font-size: var(--font-sm);
+}

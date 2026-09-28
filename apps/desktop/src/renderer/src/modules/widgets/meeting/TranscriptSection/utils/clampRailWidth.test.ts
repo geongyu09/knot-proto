@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { RAIL_MAX_PX, RAIL_MIN_PX } from '../constants/rail'
+import { PANEL_LIMITS, RAIL_MAX_PX, RAIL_MIN_PX } from '../constants/rail'
 import { clampRailWidth, railMaxWidthOf } from './clampRailWidth'
 
 describe('railMaxWidthOf', () => {
@@ -29,5 +29,15 @@ describe('clampRailWidth', () => {
   it('최소·최대 폭으로 자른다', () => {
     expect(clampRailWidth({ width: 100, maxWidth: RAIL_MAX_PX })).toBe(RAIL_MIN_PX)
     expect(clampRailWidth({ width: 900, maxWidth: 400 })).toBe(400)
+  })
+})
+
+describe('원문 패널 폭 규칙', () => {
+  it('패널 상한·하한을 따로 쓴다', () => {
+    expect(railMaxWidthOf({ contentWidth: 0, limits: PANEL_LIMITS })).toBe(PANEL_LIMITS.maxPx)
+    expect(railMaxWidthOf({ contentWidth: 500, limits: PANEL_LIMITS })).toBe(PANEL_LIMITS.minPx)
+    expect(clampRailWidth({ width: 100, maxWidth: 640, limits: PANEL_LIMITS })).toBe(
+      PANEL_LIMITS.minPx
+    )
   })
 })

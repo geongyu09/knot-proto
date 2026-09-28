@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type {
   AppSettings,
+  DecisionType,
   GlossarySettings,
   LlmApiVendor,
   LlmProvider,
@@ -17,6 +18,7 @@ import {
 } from '@shared/llm'
 import { DEFAULT_RECORDING_SHORTCUT, isValidAccelerator } from '@shared/shortcut'
 import { DEFAULT_LOCALE, isLocale } from '@shared/i18n'
+import { decisionTypesFromStored } from '@shared/decisions'
 import { getDb } from './connection'
 
 /** DB 키와 TS 필드명의 변환은 이 파일에서만 한다 (references/data-model.md) */
@@ -34,6 +36,7 @@ const REFINE_AUTO_EXTERNAL_KEY = 'refine.autoExternal'
 const LLM_PROVIDER_KEY = 'llm.provider'
 const LLM_OPENAI_MODEL_KEY = 'llm.openaiModel'
 const TELEMETRY_INSTALL_ID_KEY = 'telemetry.installId'
+const DECISION_TYPES_KEY = 'decisions.types'
 /** 회사별 암호화 키의 settings 키. Anthropic은 OpenAI 추가 전 이름을 그대로 둬 저장된 키를 잃지 않는다 */
 const LLM_API_KEY_KEYS: Record<LlmApiVendor, string> = {
   anthropic: 'llm.claudeApiKey',
@@ -250,4 +253,18 @@ export const ensureTelemetryInstallId = () => {
   writeValue({ key: TELEMETRY_INSTALL_ID_KEY, value: installId })
 
   return { installId, isFirstRun: true }
+}
+
+/**
+ * 결정 타입. `AppSettings`에 넣지 않고 자기 채널로 오간다. 키가 없거나 깨졌으면 고정 id 기본 목록으로 읽는다
+ * (references/decisions.md "결정 타입").
+ */
+export const getDecisionTypes = (): DecisionType[] =>
+  decisionTypesFromStored(readValue(DECISION_TYPES_KEY))
+
+/** 검증·id 부여는 호출하는 쪽(`readDecisionTypes`)이 끝낸 값이어야 한다 */
+export const updateDecisionTypes = ({ types }: { types: DecisionType[] }) => {
+  writeValue({ key: DECISION_TYPES_KEY, value: types })
+
+  return getDecisionTypes()
 }

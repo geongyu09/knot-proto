@@ -3,6 +3,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import type {
   PipelineProgressEvent,
   RecordingStateEvent,
+  DecisionProgressEvent,
   RefineProgressEvent,
   SummaryProgressEvent,
   UpdateAvailableEvent
@@ -16,7 +17,7 @@ import {
 } from './audio/session'
 import { handleMeetingAudioProtocol, registerMeetingAudioScheme } from './audio/playback'
 import { closeDb } from './db/connection'
-import { failStaleMeetings } from './db/meetings'
+import { failStaleDecisions, failStaleMeetings } from './db/meetings'
 import { getAppSettings, getWhisperModelId } from './db/settings'
 import { setCurrentLocale } from './locale'
 import { applyLightTheme } from './theme'
@@ -26,6 +27,7 @@ import { setMeetingsChangedListener } from './meetingsChanged'
 import { setSelectedWhisperModelId } from './models/paths'
 import {
   setPipelineProgressListener,
+  setDecisionProgressListener,
   setRefineProgressListener,
   setSummaryProgressListener
 } from './pipeline/queue'
@@ -67,6 +69,9 @@ const broadcastSummaryProgress = (event: SummaryProgressEvent) =>
 const broadcastRefineProgress = (event: RefineProgressEvent) =>
   broadcast({ channel: IPC.events.refine, event })
 
+const broadcastDecisionProgress = (event: DecisionProgressEvent) =>
+  broadcast({ channel: IPC.events.decisions, event })
+
 /** 녹음 상태는 녹음 호스트·메인 창·메뉴바가 같은 값을 봐야 한다 (references/architecture.md) */
 const broadcastRecordingState = (event: RecordingStateEvent) => {
   broadcast({ channel: IPC.events.recordingState, event })
@@ -89,6 +94,9 @@ const notifyUpdateIfAvailable = async () => {
 const cleanupPreviousRun = async () => {
   const cleaned = failStaleMeetings()
   if (cleaned) info(`비정상 종료로 남은 회의 ${cleaned}건을 오류로 정리했습니다`)
+  // 켜자마자 GPU·외부 API를 쓰지 않도록 다시 돌리지 않고 실패로 보인다 (references/decisions.md "흐름")
+  const staleDecisions = failStaleDecisions()
+  if (staleDecisions) info(`중단된 결정 추출 ${staleDecisions}건을 오류로 정리했습니다`)
 
   try {
     const removed = await removeStalePipelineArtifacts({ dir: recordingsDir() })
@@ -128,6 +136,7 @@ app.whenReady().then(async () => {
   setPipelineProgressListener(broadcastProgress)
   setSummaryProgressListener(broadcastSummaryProgress)
   setRefineProgressListener(broadcastRefineProgress)
+  setDecisionProgressListener(broadcastDecisionProgress)
   setRecordingStateListener(broadcastRecordingState)
   setMeetingsChangedListener(() => broadcast({ channel: IPC.events.meetingsChanged, event: null }))
   // 온보딩에서 고른 모델을 런타임 선택값으로 넣는다. 이후 파일명은 models/paths.ts만 정한다

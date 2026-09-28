@@ -19,6 +19,19 @@ export interface LlmCompleteParams {
   contextTokens?: number
   /** local 전용 온도 */
   temperature?: number
+  /**
+   * 출력 JSON 스키마. Claude API는 `output_config.format`, OpenAI는 `text.format`으로 강제한다.
+   * local은 무시한다 — 동봉 llama-cli의 `-jf`가 깨져 있어 같은 모양의 `grammar`를 따로 넘긴다
+   * (references/pitfalls.md "로컬 요약 / llama.cpp"). Claude Code CLI도 무시한다(프롬프트 지시 + 파싱).
+   * 최상위는 객체여야 한다 (references/decisions.md "LLM 출력")
+   */
+  jsonSchema?: LlmJsonSchema
+}
+
+export interface LlmJsonSchema {
+  /** OpenAI format 이름 규칙(영문·숫자·_·-)을 따른다 */
+  name: string
+  schema: Record<string, unknown>
 }
 
 export interface LlmClient {

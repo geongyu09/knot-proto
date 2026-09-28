@@ -1,4 +1,5 @@
 import type {
+  DecisionProgressEvent,
   ModelDownloadProgressEvent,
   PipelineProgressEvent,
   RecordingCommandEvent,
@@ -38,6 +39,16 @@ export const onSummaryProgress = (listener: (event: SummaryProgressEvent) => voi
  */
 export const onRefineProgress = (listener: (event: RefineProgressEvent) => void) =>
   window.api.events.onRefineProgress(listener)
+
+/**
+ * @description 결정 추출 진행률 이벤트를 구독합니다. 완료·실패 뒤 목록 갱신은 `onMeetingsChanged`로 따로 옵니다.
+ * @param listener - 결정 추출 진행 이벤트 콜백
+ * @returns 구독 해제 함수
+ * @example
+ * useEffect(() => onDecisionProgress(({ meetingId, stage }) => { ... }), [])
+ */
+export const onDecisionProgress = (listener: (event: DecisionProgressEvent) => void) =>
+  window.api.events.onDecisionProgress(listener)
 
 /**
  * @description 모델 다운로드 진행률 이벤트를 구독합니다. 파일(key)마다 받은 바이트와 퍼센트가 옵니다.

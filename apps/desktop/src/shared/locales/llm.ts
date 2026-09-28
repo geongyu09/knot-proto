@@ -26,17 +26,17 @@ export const llmKo = {
     'claude-api': {
       title: 'Claude API 키',
       description:
-        'Anthropic 콘솔에서 발급한 API 키로 Claude를 호출합니다. 회의록이 Anthropic 서버로 전송되고 토큰 요금이 부과됩니다.'
+        'Anthropic 콘솔에서 발급한 API 키로 Claude를 호출합니다. 녹음이 끝날 때마다 회의록이 결정 추출을 위해 자동으로 Anthropic 서버로 전송되고 토큰 요금이 부과됩니다.'
     },
     'claude-cli': {
       title: 'Claude Code (구독)',
       description:
-        '이 컴퓨터에 설치된 Claude Code(claude 명령)를 실행해 로그인한 구독 계정으로 호출합니다. 회의록이 Anthropic 서버로 전송되며 구독 사용량에 포함됩니다.'
+        '이 컴퓨터에 설치된 Claude Code(claude 명령)를 실행해 로그인한 구독 계정으로 호출합니다. 녹음이 끝날 때마다 회의록이 결정 추출을 위해 자동으로 Anthropic 서버로 전송되며 구독 사용량에 포함됩니다.'
     },
     'openai-api': {
       title: 'OpenAI API 키 (GPT)',
       description:
-        'OpenAI 플랫폼에서 발급한 API 키로 GPT를 호출합니다. 회의록이 OpenAI 서버로 전송되고 토큰 요금이 부과됩니다. 모델은 아래에서 고릅니다.'
+        'OpenAI 플랫폼에서 발급한 API 키로 GPT를 호출합니다. 녹음이 끝날 때마다 회의록이 결정 추출을 위해 자동으로 OpenAI 서버로 전송되고 토큰 요금이 부과됩니다. 모델은 아래에서 고릅니다.'
     }
   },
   apiKeyField: {
@@ -128,17 +128,17 @@ export const llmEn: typeof llmKo = {
     'claude-api': {
       title: 'Claude API key',
       description:
-        'Calls Claude with an API key issued from the Anthropic console. Transcripts are sent to Anthropic servers and token fees apply.'
+        'Calls Claude with an API key issued from the Anthropic console. Every time a recording ends, the transcript is sent automatically to Anthropic servers for decision extraction, and token fees apply.'
     },
     'claude-cli': {
       title: 'Claude Code (subscription)',
       description:
-        'Runs the Claude Code installed on this computer (the claude command) with your logged-in subscription account. Transcripts are sent to Anthropic servers and count toward your subscription usage.'
+        'Runs the Claude Code installed on this computer (the claude command) with your logged-in subscription account. Every time a recording ends, the transcript is sent automatically to Anthropic servers for decision extraction, and it counts toward your subscription usage.'
     },
     'openai-api': {
       title: 'OpenAI API key (GPT)',
       description:
-        'Calls GPT with an API key issued from the OpenAI platform. Transcripts are sent to OpenAI servers and token fees apply. Choose the model below.'
+        'Calls GPT with an API key issued from the OpenAI platform. Every time a recording ends, the transcript is sent automatically to OpenAI servers for decision extraction, and token fees apply. Choose the model below.'
     }
   },
   apiKeyField: {

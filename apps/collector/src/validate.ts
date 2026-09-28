@@ -7,6 +7,8 @@ import type { EventBatch, TelemetryEnvelope } from '@meeting-stt/telemetry/envel
 import {
   MEETING_SNAPSHOT_SCHEMA_VERSION,
   type MeetingSnapshot,
+  type SnapshotDecision,
+  type SnapshotDecisionType,
   type SnapshotMeeting,
   type SnapshotRefinePair,
   type SnapshotSpeaker,
@@ -143,7 +145,7 @@ const parseList = <T>({ value, field, parseItem }: ParseListParams<T>): ParseRes
 const parseSnapshotMeeting = (value: unknown): ParseResult<SnapshotMeeting> => {
   if (!isRecord(value)) return fail('meeting이 객체가 아닙니다')
   const { title, createdAt, durationSec, status, errorMessage, speakerCount, summary } = value
-  const { refinedAt, hasAudio } = value
+  const { refinedAt, hasAudio, decisionState, decisionError } = value
   if (typeof title !== 'string' || title.length > MAX_LONG_TEXT_LENGTH) return fail('meeting.title')
   if (!isEpochMs(createdAt)) return fail('meeting.createdAt')
   if (!isNonNegativeNumber(durationSec)) return fail('meeting.durationSec')
@@ -153,6 +155,11 @@ const parseSnapshotMeeting = (value: unknown): ParseResult<SnapshotMeeting> => {
   if (!isNullableText(summary)) return fail('meeting.summary')
   if (!isNullableEpochMs(refinedAt)) return fail('meeting.refinedAt')
   if (typeof hasAudio !== 'boolean') return fail('meeting.hasAudio')
+  // 결정 문서 필드는 2026-09-28에 추가됐다. 옛 데스크탑 빌드는 보내지 않는다
+  if (decisionState !== undefined && !isShortString(decisionState))
+    return fail('meeting.decisionState')
+  if (decisionError !== undefined && !isNullableText(decisionError))
+    return fail('meeting.decisionError')
   return {
     ok: true,
     value: {
@@ -164,7 +171,9 @@ const parseSnapshotMeeting = (value: unknown): ParseResult<SnapshotMeeting> => {
       speakerCount: speakerCount as number | null,
       summary,
       refinedAt,
-      hasAudio
+      hasAudio,
+      ...(decisionState === undefined ? {} : { decisionState }),
+      ...(decisionError === undefined ? {} : { decisionError })
     }
   }
 }
@@ -195,6 +204,71 @@ const parseRefinePair = (value: unknown): ParseResult<SnapshotRefinePair> => {
   if (typeof from !== 'string' || typeof to !== 'string') return fail('from·to')
   return { ok: true, value: { utteranceId, from, to } }
 }
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === 'string')
+
+const isAlternative = (value: unknown) =>
+  isRecord(value) && typeof value.option === 'string' && typeof value.reason === 'string'
+
+const isActionItem = (value: unknown) =>
+  isRecord(value) &&
+  typeof value.task === 'string' &&
+  (value.ownerLabel === null || typeof value.ownerLabel === 'string') &&
+  typeof value.ownerText === 'string' &&
+  typeof value.due === 'string'
+
+const isEvidence = (value: unknown) =>
+  isRecord(value) && isNonNegativeNumber(value.startSec) && isNonNegativeNumber(value.endSec)
+
+const everyOf = (value: unknown, check: (item: unknown) => boolean) =>
+  Array.isArray(value) && value.every(check)
+
+const parseDecision = (value: unknown): ParseResult<SnapshotDecision> => {
+  if (!isRecord(value)) return fail('결정 문서가 객체가 아닙니다')
+  const { id, ord, typeId, title, decision, background, createdAt } = value
+  const { alternatives, actionItems, proposerLabels, participantLabels, evidence } = value
+  if (!isShortString(id)) return fail('id')
+  if (!Number.isInteger(ord)) return fail('ord')
+  if (typeId !== null && !isShortString(typeId)) return fail('typeId')
+  if (typeof title !== 'string' || typeof decision !== 'string' || typeof background !== 'string')
+    return fail('title·decision·background')
+  if (!isEpochMs(createdAt)) return fail('createdAt')
+  if (!everyOf(alternatives, isAlternative)) return fail('alternatives')
+  if (!everyOf(actionItems, isActionItem)) return fail('actionItems')
+  if (!isStringArray(proposerLabels) || !isStringArray(participantLabels))
+    return fail('proposerLabels·participantLabels')
+  if (!everyOf(evidence, isEvidence)) return fail('evidence')
+  return {
+    ok: true,
+    value: {
+      id,
+      ord: ord as number,
+      typeId,
+      title,
+      decision,
+      background,
+      alternatives: alternatives as SnapshotDecision['alternatives'],
+      actionItems: actionItems as SnapshotDecision['actionItems'],
+      proposerLabels,
+      participantLabels,
+      evidence: evidence as SnapshotDecision['evidence'],
+      createdAt
+    }
+  }
+}
+
+const parseDecisionType = (value: unknown): ParseResult<SnapshotDecisionType> => {
+  if (!isRecord(value)) return fail('결정 타입이 객체가 아닙니다')
+  const { id, name, description } = value
+  if (!isShortString(id) || !isShortString(name) || typeof description !== 'string')
+    return fail('id·name·description')
+  return { ok: true, value: { id, name, description } }
+}
+
+/** 옛 데스크탑 빌드는 결정 필드를 보내지 않는다. 없으면 없는 대로 둔다 */
+const parseOptionalList = <T>(params: ParseListParams<T>): ParseResult<T[] | undefined> =>
+  params.value === undefined ? { ok: true, value: undefined } : parseList(params)
 
 const parseGlossaryTerm = (value: unknown): ParseResult<string> =>
   typeof value === 'string' ? { ok: true, value } : fail('용어가 문자열이 아닙니다')
@@ -232,6 +306,18 @@ export const parseMeetingSnapshot = (input: unknown): ParseResult<MeetingSnapsho
     parseItem: parseGlossaryTerm
   })
   if (!glossaryTerms.ok) return glossaryTerms
+  const decisions = parseOptionalList({
+    value: input.decisions,
+    field: 'decisions',
+    parseItem: parseDecision
+  })
+  if (!decisions.ok) return decisions
+  const decisionTypes = parseOptionalList({
+    value: input.decisionTypes,
+    field: 'decisionTypes',
+    parseItem: parseDecisionType
+  })
+  if (!decisionTypes.ok) return decisionTypes
   return {
     ok: true,
     value: {
@@ -244,7 +330,9 @@ export const parseMeetingSnapshot = (input: unknown): ParseResult<MeetingSnapsho
       utterances: utterances.value,
       speakers: speakers.value,
       refinePairs: refinePairs.value,
-      glossaryTerms: glossaryTerms.value
+      glossaryTerms: glossaryTerms.value,
+      ...(decisions.value ? { decisions: decisions.value } : {}),
+      ...(decisionTypes.value ? { decisionTypes: decisionTypes.value } : {})
     }
   }
 }

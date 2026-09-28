@@ -6,11 +6,13 @@ import styles from './SearchField.module.css'
 
 interface SearchFieldProps {
   value: string
+  /** 탭마다 찾는 대상이 달라 문구를 탭이 정한다 */
+  placeholder: string
   onChange: (value: string) => void
 }
 
 /** Esc나 지우기 버튼으로 검색을 끝내면 원래 목록으로 돌아간다 */
-export default function SearchField({ value, onChange }: SearchFieldProps) {
+export default function SearchField({ value, placeholder, onChange }: SearchFieldProps) {
   const { t } = useLocale()
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== 'Escape' || !value) return
@@ -24,8 +26,8 @@ export default function SearchField({ value, onChange }: SearchFieldProps) {
       <input
         className={styles.input}
         type="text"
-        placeholder={t.sidebar.search.placeholder}
-        aria-label={t.sidebar.search.placeholder}
+        placeholder={placeholder}
+        aria-label={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}

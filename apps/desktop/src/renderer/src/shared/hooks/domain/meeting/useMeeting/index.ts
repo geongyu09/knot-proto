@@ -19,6 +19,18 @@ interface UseMeetingParams {
   meetingId: string
 }
 
+type DetailListener = (detail: MeetingDetail) => void
+
+/**
+ * 같은 회의를 여러 위젯이 각자 읽는다(결정 문서와 원문 패널, 회의록과 요약). 한쪽에서 화자 이름·발화를 고치면
+ * 다른 쪽도 곧바로 같은 상세를 보게 편집 결과를 이 창 안에서 나눈다 (references/decisions.md "원문 패널").
+ */
+const detailListeners = new Set<DetailListener>()
+
+const publishDetail = (detail: MeetingDetail) => {
+  detailListeners.forEach((listener) => listener(detail))
+}
+
 const useMeeting = ({ meetingId }: UseMeetingParams) => {
   const { t } = useLocale()
   const [detail, setDetail] = useState<MeetingDetail | null>(null)
@@ -70,10 +82,23 @@ const useMeeting = ({ meetingId }: UseMeetingParams) => {
     [meetingId, fetchMeeting]
   )
 
+  useEffect(() => {
+    const listener: DetailListener = (next) => {
+      if (next.meeting.id === meetingId) setDetail(next)
+    }
+    detailListeners.add(listener)
+
+    return () => {
+      detailListeners.delete(listener)
+    }
+  }, [meetingId])
+
   /** 편집 채널은 갱신된 상세를 그대로 돌려준다 (references/architecture.md) */
   const applyMutation = async (mutate: () => Promise<MeetingDetail>) => {
     try {
-      setDetail(await mutate())
+      const next = await mutate()
+      setDetail(next)
+      publishDetail(next)
       setSaveError(null)
 
       return true
