@@ -1,0 +1,14 @@
+{
+  "name": "@meeting-stt/telemetry",
+  "version": "0.0.0",
+  "private": true,
+  "description": "사용 정보 수집 계약 — 이벤트 이름·payload 타입·envelope·회의 스냅샷·수집 서버 HTTP 규약 (test/usage-analytics 전용)",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

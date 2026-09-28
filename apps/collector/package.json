@@ -1,0 +1,25 @@
+{
+  "name": "@meeting-stt/collector",
+  "version": "0.0.0",
+  "private": true,
+  "description": "사용 정보·회의 내용 수집 서버 (test/usage-analytics 브랜치 전용, Hono + node:sqlite)",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "tsx watch --no-warnings=ExperimentalWarning src/index.ts",
+    "start": "tsx --no-warnings=ExperimentalWarning src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.5",
+    "@meeting-stt/telemetry": "workspace:*",
+    "hono": "^4.10.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.1",
+    "tsx": "^4.23.12"
+  }
+}
